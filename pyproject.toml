@@ -24,6 +24,9 @@ dev = [
   "ruff>=0.8,<1",
 ]
 
+[project.scripts]
+moex-analytics = "moex_analytics.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/moex_analytics"]
 
@@ -42,4 +45,3 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "RUF"]
-

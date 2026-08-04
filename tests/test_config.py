@@ -2,7 +2,7 @@ from moex_analytics.config import load_instruments, load_settings
 
 
 def test_initial_instrument_universe() -> None:
-    tickers = [item["ticker"] for item in load_instruments()]
+    tickers = [item["secid"] for item in load_instruments()]
     assert tickers == ["IMOEX", "SBER", "LKOH", "GAZP"]
 
 

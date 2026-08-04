@@ -1,7 +1,5 @@
-# engine, market и board будут проверены через MOEX ISS на следующем этапе.
 instruments:
-  - {ticker: IMOEX, kind: index, enabled: true}
-  - {ticker: SBER, kind: share, enabled: true}
-  - {ticker: LKOH, kind: share, enabled: true}
-  - {ticker: GAZP, kind: share, enabled: true}
-
+  - {secid: IMOEX, name: Индекс МосБиржи, instrument_type: stock_index, engine: stock, market: index, board: SNDX, history_from: 1997-09-22, history_available: true, is_active: true}
+  - {secid: SBER, name: Сбербанк России ПАО ао, instrument_type: common_share, engine: stock, market: shares, board: TQBR, history_from: 2013-03-25, history_available: true, is_active: true}
+  - {secid: LKOH, name: НК ЛУКОЙЛ (ПАО) - ао, instrument_type: common_share, engine: stock, market: shares, board: TQBR, history_from: 2013-03-25, history_available: true, is_active: true}
+  - {secid: GAZP, name: '"Газпром" (ПАО) ао', instrument_type: common_share, engine: stock, market: shares, board: TQBR, history_from: 2014-06-09, history_available: true, is_active: true}

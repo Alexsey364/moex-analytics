@@ -11,4 +11,4 @@ moex_iss:
   max_retries: 4
   retry_backoff_seconds: 1.0
   user_agent: moex-analytics/0.1.0
-
+  page_size: 100

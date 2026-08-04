@@ -28,4 +28,4 @@ def load_instruments() -> list[dict[str, Any]]:
     items = load_yaml(CONFIG_DIR / "instruments.yaml").get("instruments")
     if not isinstance(items, list):
         raise ValueError("'instruments' must be a list")
-    return [item for item in items if item.get("enabled", False)]
+    return [item for item in items if item.get("is_active", False)]
