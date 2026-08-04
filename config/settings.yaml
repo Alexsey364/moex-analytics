@@ -1,0 +1,14 @@
+project:
+  timezone: Europe/Moscow
+paths:
+  raw_data: data/raw
+  processed_data: data/processed
+  database: database/market.duckdb
+  reports: reports
+moex_iss:
+  base_url: https://iss.moex.com/iss
+  timeout_seconds: 30
+  max_retries: 4
+  retry_backoff_seconds: 1.0
+  user_agent: moex-analytics/0.1.0
+

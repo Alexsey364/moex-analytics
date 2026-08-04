@@ -1,0 +1,7 @@
+# engine, market и board будут проверены через MOEX ISS на следующем этапе.
+instruments:
+  - {ticker: IMOEX, kind: index, enabled: true}
+  - {ticker: SBER, kind: share, enabled: true}
+  - {ticker: LKOH, kind: share, enabled: true}
+  - {ticker: GAZP, kind: share, enabled: true}
+
