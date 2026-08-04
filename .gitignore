@@ -9,6 +9,9 @@ dist/
 build/
 *.egg-info/
 .env
+.streamlit/secrets.toml
+.streamlit/credentials.toml
+.streamlit/cache/
 data/raw/*
 !data/raw/.gitkeep
 data/processed/*

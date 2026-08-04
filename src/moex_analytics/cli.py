@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
 from .calendar import rebuild_calendar
@@ -112,6 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("download-dividends")
     sub.add_parser("calculate-returns")
     sub.add_parser("status")
+    sub.add_parser("dashboard")
     return parser
 
 
@@ -184,6 +188,22 @@ def main() -> None:
                    FROM instruments i ORDER BY i.secid"""
             ).fetchall()
             print({"rows": row_counts(con), "details": details})
+    elif args.command == "dashboard":
+        app = Path(__file__).parent / "dashboard" / "app.py"
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "streamlit",
+                "run",
+                str(app),
+                "--server.address",
+                "localhost",
+                "--server.port",
+                "8501",
+            ],
+            check=True,
+        )
 
 
 if __name__ == "__main__":
