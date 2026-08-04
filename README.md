@@ -3,7 +3,7 @@
 Исследовательская платформа для воспроизводимого системного анализа российского
 фондового рынка на основе официального MOEX ISS API и локального DuckDB.
 
-> Статус: этап 2 — DuckDB, загрузка дневной истории и контроль качества.
+> Статус: этап 3 — исторические доски, канонические ряды, дивиденды и доходности.
 
 ## Принципы
 
@@ -66,6 +66,12 @@ python -m moex_analytics.cli download --ticker SBER --from-date 2024-01-01 --to-
 python -m moex_analytics.cli download-all --from-date 2024-01-01 --to-date 2024-01-31
 python -m moex_analytics.cli quality-check
 python -m moex_analytics.cli status
+python -m moex_analytics.cli discover-history
+python -m moex_analytics.cli download-history --ticker SBER
+python -m moex_analytics.cli download-history-all
+python -m moex_analytics.cli build-canonical
+python -m moex_analytics.cli download-dividends
+python -m moex_analytics.cli calculate-returns
 ```
 
 `discover` получает параметры из официального MOEX ISS. Каждый JSON-ответ истории
@@ -97,10 +103,16 @@ python -m moex_analytics.cli quality-check
 python -m moex_analytics.cli status
 ```
 
-## Ограничения этапа 2
+## Историческая методология
 
-Ряды акций начинаются на текущей первичной доске TQBR; прежние доски автоматически
-не склеиваются. Для IMOEX используется отдельный рынок `index`. Доступность зависит
-от MOEX ISS. Факторы, сигналы и бэктест пока отсутствуют.
+Подробности находятся в docs/historical_boards.md, docs/data_methodology.md и
+docs/dividend_methodology.md. Исходные доски не склеиваются в daily_prices.
+Канонический ряд выбирает строку по явному приоритету и регистрирует пересечения.
+
+## Ограничения этапа 3
+
+ISS dividends не сообщает даты объявления и выплаты, поэтому они остаются NULL.
+Исторический total-return использует фактические выплаты и не является point-in-time
+рядом. Конфликты досок не исправляются автоматически. Бэктест отсутствует.
 
 Это исследовательское ПО, а не инвестиционная рекомендация или торговый робот.

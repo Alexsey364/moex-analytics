@@ -69,3 +69,33 @@ def test_retry_after_temporary_error():
     assert client.get_json("test") == {"ok": True}
     assert len(session.calls) == 2
     assert sleeps == [1.0]
+
+
+def test_discover_history_filters_non_price_markets(tmp_path):
+    body = {
+        "boards": {
+            "columns": ["engine", "market", "history_from", "boardid"],
+            "data": [
+                ["stock", "shares", "2010-01-01", "MAIN"],
+                ["stock", "repo", "2010-01-01", "REPO"],
+            ],
+        }
+    }
+    client = MoexClient(session=Session([Response(body)]), sleep=lambda _: None)
+    client.raw_dir = tmp_path
+    assert [row["boardid"] for row in client.discover_history("TEST")] == ["MAIN"]
+
+
+def test_dividend_semantics_leave_unknown_dates_null(tmp_path):
+    body = {
+        "dividends": {
+            "columns": ["secid", "registryclosedate", "value", "currencyid"],
+            "data": [["SBER", "2024-07-11", 33.3, "RUB"]],
+        }
+    }
+    client = MoexClient(session=Session([Response(body)]), sleep=lambda _: None)
+    client.raw_dir = tmp_path
+    row = client.dividends("SBER")[0]
+    assert row["registry_close_date"] == "2024-07-11"
+    assert row["declared_date"] is None
+    assert row["payment_date"] is None

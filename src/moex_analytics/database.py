@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+import pandas as pd
 
 from .config import PROJECT_ROOT, load_settings
 
@@ -34,6 +35,36 @@ CREATE SEQUENCE IF NOT EXISTS quality_issue_id_seq START 1;
 CREATE TABLE IF NOT EXISTS data_quality_issues (
     id BIGINT PRIMARY KEY DEFAULT nextval('quality_issue_id_seq'), secid VARCHAR,
     trade_date DATE, issue_type VARCHAR, description VARCHAR, detected_at TIMESTAMP
+);
+CREATE SEQUENCE IF NOT EXISTS segment_id_seq START 1;
+CREATE TABLE IF NOT EXISTS instrument_history_segments (
+    id BIGINT PRIMARY KEY DEFAULT nextval('segment_id_seq'),
+    canonical_secid VARCHAR, source_secid VARCHAR, engine VARCHAR, market VARCHAR,
+    board VARCHAR, date_from DATE, date_to DATE, priority INTEGER, is_primary BOOLEAN,
+    notes VARCHAR, discovered_at TIMESTAMP,
+    UNIQUE(canonical_secid, source_secid, board)
+);
+CREATE TABLE IF NOT EXISTS canonical_daily_prices (
+    trade_date DATE, canonical_secid VARCHAR, source_secid VARCHAR, board VARCHAR,
+    open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, weighted_average_price DOUBLE,
+    volume DOUBLE, value DOUBLE, number_of_trades BIGINT, source_priority INTEGER,
+    loaded_at TIMESTAMP, PRIMARY KEY(trade_date, canonical_secid)
+);
+CREATE TABLE IF NOT EXISTS dividends (
+    canonical_secid VARCHAR, registry_close_date DATE, declared_date DATE,
+    payment_date DATE, dividend_per_share DOUBLE, currency VARCHAR, source VARCHAR,
+    loaded_at TIMESTAMP, notes VARCHAR,
+    PRIMARY KEY(canonical_secid, registry_close_date)
+);
+CREATE TABLE IF NOT EXISTS daily_returns (
+    trade_date DATE, canonical_secid VARCHAR, price_return DOUBLE, log_return DOUBLE,
+    dividend_cash DOUBLE, dividend_return DOUBLE, total_return DOUBLE,
+    total_return_index DOUBLE, calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(trade_date, canonical_secid, calculation_version)
+);
+CREATE TABLE IF NOT EXISTS trading_calendar (
+    trade_date DATE, market VARCHAR, is_trading_day BOOLEAN, session_type VARCHAR,
+    source VARCHAR, loaded_at TIMESTAMP, PRIMARY KEY(trade_date, market, session_type)
 );
 """
 
@@ -83,30 +114,33 @@ def upsert_instruments(con: duckdb.DuckDBPyConnection, items: Sequence[dict[str,
 
 
 def insert_daily_prices(con: duckdb.DuckDBPyConnection, rows: Sequence[dict[str, Any]]) -> int:
+    if not rows:
+        return 0
     before = con.execute("SELECT count(*) FROM daily_prices").fetchone()[0]
-    for row in rows:
+    columns = (
+        "trade_date",
+        "secid",
+        "board",
+        "open",
+        "high",
+        "low",
+        "close",
+        "weighted_average_price",
+        "volume",
+        "value",
+        "number_of_trades",
+        "source",
+        "loaded_at",
+    )
+    frame = pd.DataFrame([{column: row.get(column) for column in columns} for row in rows])
+    con.register("incoming_daily_prices", frame)
+    try:
         con.execute(
-            """INSERT INTO daily_prices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(trade_date, secid, board) DO NOTHING""",
-            [
-                row.get(column)
-                for column in (
-                    "trade_date",
-                    "secid",
-                    "board",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "weighted_average_price",
-                    "volume",
-                    "value",
-                    "number_of_trades",
-                    "source",
-                    "loaded_at",
-                )
-            ],
+            """INSERT INTO daily_prices SELECT * FROM incoming_daily_prices
+               ON CONFLICT(trade_date, secid, board) DO NOTHING"""
         )
+    finally:
+        con.unregister("incoming_daily_prices")
     after = con.execute("SELECT count(*) FROM daily_prices").fetchone()[0]
     return int(after - before)
 
@@ -120,9 +154,7 @@ def latest_date(con: duckdb.DuckDBPyConnection, secid: str, board: str) -> date 
 
 def row_counts(con: duckdb.DuckDBPyConnection) -> dict[str, int]:
     return dict(
-        con.execute(
-            "SELECT secid, count(*) FROM daily_prices GROUP BY secid ORDER BY secid"
-        ).fetchall()
+        con.execute("SELECT secid, count(*) FROM daily_prices GROUP BY secid ORDER BY secid").fetchall()
     )
 
 
@@ -147,3 +179,60 @@ def finish_load(
            rows_inserted=?, status=?, error_message=? WHERE id=?""",
         [received, inserted, status, error, load_id],
     )
+
+
+def upsert_segments(con: duckdb.DuckDBPyConnection, segments: Sequence[dict[str, Any]]) -> None:
+    for item in segments:
+        con.execute(
+            """INSERT INTO instrument_history_segments
+               (canonical_secid,source_secid,engine,market,board,date_from,date_to,
+                priority,is_primary,notes,discovered_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,current_timestamp)
+               ON CONFLICT(canonical_secid,source_secid,board) DO UPDATE SET
+               date_from=excluded.date_from,date_to=excluded.date_to,
+               priority=excluded.priority,is_primary=excluded.is_primary,
+               notes=excluded.notes,discovered_at=excluded.discovered_at""",
+            [
+                item[key]
+                for key in (
+                    "canonical_secid",
+                    "source_secid",
+                    "engine",
+                    "market",
+                    "board",
+                    "date_from",
+                    "date_to",
+                    "priority",
+                    "is_primary",
+                    "notes",
+                )
+            ],
+        )
+
+
+def insert_dividends(con: duckdb.DuckDBPyConnection, rows: Sequence[dict[str, Any]]) -> int:
+    before = con.execute("SELECT count(*) FROM dividends").fetchone()[0]
+    for row in rows:
+        con.execute(
+            """INSERT INTO dividends VALUES (?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(canonical_secid,registry_close_date) DO UPDATE SET
+               dividend_per_share=excluded.dividend_per_share,
+               currency=excluded.currency,source=excluded.source,
+               loaded_at=excluded.loaded_at,notes=excluded.notes""",
+            [
+                row.get(key)
+                for key in (
+                    "canonical_secid",
+                    "registry_close_date",
+                    "declared_date",
+                    "payment_date",
+                    "dividend_per_share",
+                    "currency",
+                    "source",
+                    "loaded_at",
+                    "notes",
+                )
+            ],
+        )
+    after = con.execute("SELECT count(*) FROM dividends").fetchone()[0]
+    return int(after - before)

@@ -29,3 +29,11 @@ def load_instruments() -> list[dict[str, Any]]:
     if not isinstance(items, list):
         raise ValueError("'instruments' must be a list")
     return [item for item in items if item.get("is_active", False)]
+
+
+def load_segments() -> list[dict[str, Any]]:
+    """Return confirmed main-price history segments."""
+    items = load_yaml(CONFIG_DIR / "history_segments.yaml").get("segments")
+    if not isinstance(items, list):
+        raise ValueError("'segments' must be a list")
+    return items

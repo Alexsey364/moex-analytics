@@ -1,0 +1,11 @@
+# Only comparable primary/main price regimes confirmed by MOEX ISS are canonicalized.
+segments:
+  - {canonical_secid: IMOEX, source_secid: IMOEX, engine: stock, market: index, board: SNDX, date_from: 1997-09-22, date_to: 2099-12-31, priority: 100, is_primary: true, notes: Official primary index board}
+  - {canonical_secid: SBER, source_secid: SBER, engine: stock, market: shares, board: EQBR, date_from: 2011-11-21, date_to: 2013-08-30, priority: 90, is_primary: false, notes: Former main board}
+  - {canonical_secid: SBER, source_secid: SBER, engine: stock, market: shares, board: TQBR, date_from: 2013-03-25, date_to: 2099-12-31, priority: 100, is_primary: true, notes: Current primary board}
+  - {canonical_secid: LKOH, source_secid: LKOH, engine: stock, market: shares, board: EQBR, date_from: 2003-08-20, date_to: 2013-08-30, priority: 90, is_primary: false, notes: Former main board}
+  - {canonical_secid: LKOH, source_secid: LKOH, engine: stock, market: shares, board: TQBR, date_from: 2013-03-25, date_to: 2099-12-31, priority: 100, is_primary: true, notes: Current primary board}
+  - {canonical_secid: GAZP, source_secid: GAZP, engine: stock, market: shares, board: EQNE, date_from: 2006-01-23, date_to: 2013-08-30, priority: 70, is_primary: false, notes: Former main unlisted board}
+  - {canonical_secid: GAZP, source_secid: GAZP, engine: stock, market: shares, board: TQNE, date_from: 2013-03-25, date_to: 2013-12-25, priority: 80, is_primary: false, notes: Former T+ unlisted board}
+  - {canonical_secid: GAZP, source_secid: GAZP, engine: stock, market: shares, board: TQBS, date_from: 2013-12-26, date_to: 2014-06-06, priority: 90, is_primary: false, notes: Former T+ A2 board}
+  - {canonical_secid: GAZP, source_secid: GAZP, engine: stock, market: shares, board: TQBR, date_from: 2014-06-09, date_to: 2099-12-31, priority: 100, is_primary: true, notes: Current primary board}

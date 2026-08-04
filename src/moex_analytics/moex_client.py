@@ -37,9 +37,7 @@ class MoexClient:
             try:
                 response = self.session.get(url, params=params, timeout=self.timeout)
                 if response.status_code in {429, 500, 502, 503, 504}:
-                    raise requests.HTTPError(
-                        f"temporary HTTP {response.status_code}", response=response
-                    )
+                    raise requests.HTTPError(f"temporary HTTP {response.status_code}", response=response)
                 response.raise_for_status()
                 return response.json()
             except (
@@ -49,8 +47,7 @@ class MoexClient:
                 ValueError,
             ) as exc:
                 retryable = not isinstance(exc, requests.HTTPError) or (
-                    exc.response is not None
-                    and exc.response.status_code in {429, 500, 502, 503, 504}
+                    exc.response is not None and exc.response.status_code in {429, 500, 502, 503, 504}
                 )
                 if not retryable or attempt + 1 == self.max_retries:
                     raise MoexError(f"MOEX ISS request failed: {url}: {exc}") from exc
@@ -77,12 +74,29 @@ class MoexClient:
             "is_active": bool(primary["is_traded"]),
         }
 
+    def discover_history(self, secid: str) -> list[dict[str, Any]]:
+        payload = self.get_json(f"securities/{secid}.json", {"iss.meta": "off"})
+        columns = payload["boards"]["columns"]
+        boards = [dict(zip(columns, row, strict=True)) for row in payload["boards"]["data"]]
+        result = [
+            row
+            for row in boards
+            if row["engine"] == "stock"
+            and row["market"] in {"shares", "index"}
+            and row["history_from"] is not None
+        ]
+        self.save_raw(secid, "boards", 0, payload)
+        return result
+
     def history_pages(
         self, instrument: dict[str, Any], date_from: str, date_to: str
     ) -> Iterator[tuple[dict[str, Any], int, str]]:
+        secid = instrument.get("source_secid", instrument.get("secid"))
+        if not secid:
+            raise MoexError("History instrument requires secid or source_secid")
         path = (
             f"history/engines/{instrument['engine']}/markets/{instrument['market']}/"
-            f"boards/{instrument['board']}/securities/{instrument['secid']}.json"
+            f"boards/{instrument['board']}/securities/{secid}.json"
         )
         start = 0
         while True:
@@ -95,7 +109,7 @@ class MoexClient:
             }
             payload = self.get_json(path, params)
             source = f"{self.base_url}/{path}"
-            self.save_raw(instrument["secid"], "history", start, payload)
+            self.save_raw(secid, "history", start, payload)
             yield payload, start, source
             cursor = payload.get("history.cursor", {})
             if not cursor.get("data"):
@@ -111,6 +125,29 @@ class MoexClient:
         path = self.raw_dir / f"{secid}_{kind}_page-{page}_{stamp}.json"
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         return path
+
+    def dividends(self, secid: str) -> list[dict[str, Any]]:
+        path = f"securities/{secid}/dividends.json"
+        payload = self.get_json(path, {"iss.meta": "off"})
+        self.save_raw(secid, "dividends", 0, payload)
+        block = payload["dividends"]
+        rows = [dict(zip(block["columns"], row, strict=True)) for row in block["data"]]
+        source = f"{self.base_url}/{path}"
+        now = datetime.now()
+        return [
+            {
+                "canonical_secid": secid,
+                "registry_close_date": row["registryclosedate"],
+                "declared_date": None,
+                "payment_date": None,
+                "dividend_per_share": row["value"],
+                "currency": row["currencyid"],
+                "source": source,
+                "loaded_at": now,
+                "notes": "ISS supplies registry close date only; declaration/payment unavailable",
+            }
+            for row in rows
+        ]
 
     @staticmethod
     def normalize_history(

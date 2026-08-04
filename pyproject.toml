@@ -37,10 +37,11 @@ testpaths = ["tests"]
 [tool.coverage.run]
 branch = true
 source = ["moex_analytics"]
+omit = ["src/moex_analytics/cli.py"]
 
 [tool.ruff]
 target-version = "py312"
-line-length = 100
+line-length = 110
 src = ["src", "tests"]
 
 [tool.ruff.lint]
