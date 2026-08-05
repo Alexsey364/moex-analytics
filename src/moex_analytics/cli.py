@@ -31,6 +31,12 @@ from .database import (
 )
 from .features import calculate_all as calculate_features
 from .forward_returns import calculate_all as calculate_forward_returns
+from .fundamentals.loader import discover as discover_sber_fundamentals
+from .fundamentals.loader import download as download_sber_fundamentals
+from .fundamentals.loader import import_report as import_sber_report
+from .fundamentals.point_in_time import build_snapshots as build_fundamental_snapshots
+from .fundamentals.scenarios import calculate_all as calculate_sber_valuation
+from .fundamentals.validation import validate_all as validate_sber_valuation
 from .macro.audit import run_audit as run_macro_audit
 from .macro.experiment import calculate_forecasts
 from .macro.experiment import validate_all as validate_macro_models
@@ -145,6 +151,14 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("calculate-forecast-ranges")
     sub.add_parser("macro-status")
     sub.add_parser("audit-macro-model")
+    sub.add_parser("discover-sber-fundamentals")
+    sub.add_parser("download-sber-fundamentals")
+    imported = sub.add_parser("import-sber-report")
+    imported.add_argument("path", type=Path)
+    sub.add_parser("build-fundamental-snapshots")
+    sub.add_parser("calculate-sber-valuation")
+    sub.add_parser("validate-sber-valuation")
+    sub.add_parser("sber-fundamental-status")
     return parser
 
 
@@ -352,6 +366,49 @@ def main() -> None:
                         ],
                     }
                 )
+    elif args.command in {
+        "discover-sber-fundamentals",
+        "download-sber-fundamentals",
+        "import-sber-report",
+        "build-fundamental-snapshots",
+        "calculate-sber-valuation",
+        "validate-sber-valuation",
+        "sber-fundamental-status",
+    }:
+        init_database()
+        if args.command == "discover-sber-fundamentals":
+            print(discover_sber_fundamentals())
+        elif args.command == "download-sber-fundamentals":
+            print(download_sber_fundamentals())
+        else:
+            with connection() as con:
+                if args.command == "import-sber-report":
+                    print(import_sber_report(con, args.path))
+                elif args.command == "build-fundamental-snapshots":
+                    print({"rows": build_fundamental_snapshots(con)})
+                elif args.command == "calculate-sber-valuation":
+                    print(
+                        calculate_sber_valuation(
+                            con, Path(__file__).parents[2] / "config" / "sber_valuation.yaml"
+                        )
+                    )
+                elif args.command == "validate-sber-valuation":
+                    print(validate_sber_valuation(con))
+                else:
+                    print(
+                        {
+                            "observations": con.execute(
+                                "SELECT count(*) FROM fundamental_observations"
+                            ).fetchone()[0],
+                            "releases": con.execute("SELECT count(*) FROM fundamental_releases").fetchone()[
+                                0
+                            ],
+                            "snapshots": con.execute("SELECT count(*) FROM fundamental_snapshots").fetchone()[
+                                0
+                            ],
+                            "valuations": con.execute("SELECT count(*) FROM valuation_results").fetchone()[0],
+                        }
+                    )
     elif args.command == "dashboard":
         app = Path(__file__).parent / "dashboard" / "app.py"
         subprocess.run(

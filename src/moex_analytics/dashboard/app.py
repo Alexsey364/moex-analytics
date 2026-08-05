@@ -28,6 +28,7 @@ from moex_analytics.dashboard.pages import (
     analytics,
     data_quality,
     database_status,
+    fundamentals,
     instrument,
     macro,
     methodology,
@@ -67,6 +68,11 @@ top[3].metric(
 )
 
 pages = {
+    "Фундаментал SBER": fundamentals.render_fundamental,
+    "Мультипликаторы SBER": fundamentals.render_multiples,
+    "Сценарная оценка SBER": fundamentals.render_scenarios,
+    "Историческая проверка фундаментала": fundamentals.render_validation,
+    "Источники и качество SBER": fundamentals.render_sources,
     "Аудит макромодели": macro.render_audit,
     "Макроэкономика": macro.render_macro,
     "Макрофакторы инструмента": macro.render_instrument_factors,

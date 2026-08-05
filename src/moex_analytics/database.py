@@ -201,6 +201,65 @@ CREATE TABLE IF NOT EXISTS macro_audit_runs (
     run_id VARCHAR PRIMARY KEY, calculation_version VARCHAR, started_at TIMESTAMP,
     finished_at TIMESTAMP, duration_seconds DOUBLE, status VARCHAR, details_json JSON
 );
+CREATE TABLE IF NOT EXISTS fundamental_series (
+    metric_id VARCHAR PRIMARY KEY, name VARCHAR, frequency VARCHAR, unit VARCHAR,
+    report_type VARCHAR, accounting_standard VARCHAR, source VARCHAR,
+    description VARCHAR, updated_at TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS fundamental_observations (
+    secid VARCHAR, metric_id VARCHAR, period_start DATE, period_end DATE,
+    report_type VARCHAR, accounting_standard VARCHAR, publication_date DATE,
+    available_from TIMESTAMPTZ, value DOUBLE, unit VARCHAR, source VARCHAR,
+    source_document VARCHAR, revision_id VARCHAR, loaded_at TIMESTAMP,
+    PRIMARY KEY(secid,metric_id,period_end,accounting_standard,revision_id)
+);
+CREATE TABLE IF NOT EXISTS fundamental_releases (
+    release_id VARCHAR PRIMARY KEY, secid VARCHAR, period_start DATE, period_end DATE,
+    report_type VARCHAR, accounting_standard VARCHAR, publication_date DATE,
+    available_from TIMESTAMPTZ, source VARCHAR, source_document VARCHAR,
+    revision_id VARCHAR, import_method VARCHAR, loaded_at TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS fundamental_features (
+    trade_date DATE, secid VARCHAR, metric_id VARCHAR, value DOUBLE, unit VARCHAR,
+    report_period_end DATE, publication_date DATE, source VARCHAR,
+    calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(trade_date,secid,metric_id,calculation_version)
+);
+CREATE TABLE IF NOT EXISTS fundamental_snapshots (
+    trade_date DATE, secid VARCHAR, metric_id VARCHAR, value DOUBLE,
+    report_period_end DATE, publication_date DATE, age_days INTEGER, source VARCHAR,
+    calculation_version VARCHAR,
+    PRIMARY KEY(trade_date,secid,metric_id,calculation_version)
+);
+CREATE TABLE IF NOT EXISTS valuation_inputs (
+    as_of_date DATE, secid VARCHAR, input_name VARCHAR, value DOUBLE, unit VARCHAR,
+    source_period_end DATE, source_publication_date DATE, scenario_version VARCHAR,
+    calculated_at TIMESTAMP,
+    PRIMARY KEY(as_of_date,secid,input_name,scenario_version)
+);
+CREATE TABLE IF NOT EXISTS valuation_scenarios (
+    as_of_date DATE, secid VARCHAR, scenario VARCHAR, assumptions_json JSON,
+    scenario_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(as_of_date,secid,scenario,scenario_version)
+);
+CREATE TABLE IF NOT EXISTS valuation_results (
+    as_of_date DATE, secid VARCHAR, scenario VARCHAR, method VARCHAR,
+    fair_value DOUBLE, dividend DOUBLE, total_return DOUBLE, lower_price DOUBLE,
+    upper_price DOUBLE, details_json JSON, scenario_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(as_of_date,secid,scenario,method,scenario_version)
+);
+CREATE SEQUENCE IF NOT EXISTS fundamental_quality_issue_id_seq START 1;
+CREATE TABLE IF NOT EXISTS fundamental_quality_issues (
+    id BIGINT PRIMARY KEY DEFAULT nextval('fundamental_quality_issue_id_seq'),
+    secid VARCHAR, metric_id VARCHAR, period_end DATE, issue_type VARCHAR,
+    severity VARCHAR, description VARCHAR, detected_at TIMESTAMP
+);
+CREATE SEQUENCE IF NOT EXISTS fundamental_run_id_seq START 1;
+CREATE TABLE IF NOT EXISTS fundamental_runs (
+    id BIGINT PRIMARY KEY DEFAULT nextval('fundamental_run_id_seq'), run_type VARCHAR,
+    started_at TIMESTAMP, finished_at TIMESTAMP, duration_seconds DOUBLE,
+    rows_received BIGINT, rows_written BIGINT, status VARCHAR, details_json JSON
+);
 """
 
 

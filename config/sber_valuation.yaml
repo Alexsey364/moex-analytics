@@ -1,0 +1,69 @@
+sber_valuation:
+  version: sber-valuation-v1
+  horizon_sessions: 250
+  assumptions_are_not_fitted_to_future_price: true
+  scenarios:
+    optimistic:
+      profit: 2.05e12
+      shares: 2.1586948e10
+      bvps: 390.0
+      roe: 0.25
+      cost_of_risk: 0.010
+      payout_ratio: 0.50
+      target_pe: 5.5
+      target_pb: 1.35
+      risk_free_rate: 0.12
+      market_risk_premium: 0.045
+      country_premium: 0.015
+      beta: 0.90
+      additional_premium: 0.00
+      cost_of_equity: 0.175
+      growth: 0.04
+    base:
+      profit: 1.80e12
+      shares: 2.1586948e10
+      bvps: 375.0
+      roe: 0.23
+      cost_of_risk: 0.013
+      payout_ratio: 0.50
+      target_pe: 4.5
+      target_pb: 1.10
+      risk_free_rate: 0.13
+      market_risk_premium: 0.05
+      country_premium: 0.02
+      beta: 1.00
+      additional_premium: 0.01
+      cost_of_equity: 0.21
+      growth: 0.03
+    conservative:
+      profit: 1.45e12
+      shares: 2.1586948e10
+      bvps: 350.0
+      roe: 0.19
+      cost_of_risk: 0.018
+      payout_ratio: 0.40
+      target_pe: 3.7
+      target_pb: 0.85
+      risk_free_rate: 0.14
+      market_risk_premium: 0.055
+      country_premium: 0.025
+      beta: 1.05
+      additional_premium: 0.02
+      cost_of_equity: 0.245
+      growth: 0.02
+    stress:
+      profit: 9.50e11
+      shares: 2.1586948e10
+      bvps: 320.0
+      roe: 0.13
+      cost_of_risk: 0.030
+      payout_ratio: 0.25
+      target_pe: 3.0
+      target_pb: 0.60
+      risk_free_rate: 0.16
+      market_risk_premium: 0.06
+      country_premium: 0.035
+      beta: 1.10
+      additional_premium: 0.04
+      cost_of_equity: 0.30
+      growth: 0.00
