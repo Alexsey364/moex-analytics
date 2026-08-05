@@ -95,3 +95,59 @@ def render_events():
         st.warning("Нет событий с подтверждённым официальным расписанием в локальной базе.")
         return
     st.dataframe(frame, use_container_width=True)
+
+
+def render_audit():
+    st.header("Аудит макромодели")
+    ticker = _ticker()
+    with connection() as con:
+        latest = con.execute("""SELECT run_id,duration_seconds,finished_at
+            FROM macro_audit_runs ORDER BY finished_at DESC LIMIT 1""").fetchone()
+        if not latest:
+            st.warning("Аудит ещё не выполнен. Запустите audit-macro-model.")
+            return
+        run_id = latest[0]
+        data = con.execute(
+            """SELECT series_id,metrics_json FROM macro_data_audit
+            WHERE run_id=? AND canonical_secid=? ORDER BY series_id""",
+            [run_id, ticker],
+        ).fetchdf()
+        matrix = con.execute(
+            """SELECT horizon,metrics_json FROM macro_matrix_audit
+            WHERE run_id=? AND canonical_secid=? ORDER BY horizon""",
+            [run_id, ticker],
+        ).fetchdf()
+        ablation = con.execute(
+            """SELECT horizon,block_name,sample_type,period,metrics_json
+            FROM macro_ablation_results WHERE run_id=? AND canonical_secid=?
+            ORDER BY horizon,block_name,sample_type""",
+            [run_id, ticker],
+        ).fetchdf()
+        coefficients = con.execute(
+            """SELECT horizon,block_name,feature_name,metrics_json
+            FROM macro_coefficient_audit WHERE run_id=? AND canonical_secid=?
+            ORDER BY horizon,block_name,feature_name""",
+            [run_id, ticker],
+        ).fetchdf()
+        regimes = con.execute(
+            """SELECT horizon,regime,metrics_json FROM macro_regime_audit
+            WHERE run_id=? AND canonical_secid=? ORDER BY horizon,regime""",
+            [run_id, ticker],
+        ).fetchdf()
+        decisions = con.execute(
+            """SELECT horizon,block_name,status,reason,evidence_json
+            FROM macro_feature_audit WHERE run_id=? AND canonical_secid=?
+            ORDER BY horizon,block_name""",
+            [run_id, ticker],
+        ).fetchdf()
+    st.caption(f"Запуск {run_id}; длительность {latest[1]:.1f} с; завершён {latest[2]}")
+    tabs = st.tabs(["Заполненность и возраст", "Матрица", "Ablation", "Коэффициенты", "Режимы", "Решения"])
+    frames = (data, matrix, ablation, coefficients, regimes, decisions)
+    for tab, frame in zip(tabs, frames, strict=True):
+        with tab:
+            for column in ("metrics_json", "evidence_json"):
+                if column in frame:
+                    normalized = pd.json_normalize(frame.pop(column).map(json.loads))
+                    frame = pd.concat([frame, normalized], axis=1)
+            st.dataframe(frame, use_container_width=True)
+    st.warning("Статусы аудита исследовательские и не являются торговой рекомендацией.")

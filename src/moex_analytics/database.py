@@ -164,6 +164,43 @@ CREATE TABLE IF NOT EXISTS experimental_scores (
     calculation_version VARCHAR, calculated_at TIMESTAMP,
     PRIMARY KEY(trade_date,canonical_secid,calculation_version)
 );
+CREATE TABLE IF NOT EXISTS macro_data_audit (
+    run_id VARCHAR, canonical_secid VARCHAR, series_id VARCHAR, metrics_json JSON,
+    calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(run_id,canonical_secid,series_id)
+);
+CREATE TABLE IF NOT EXISTS macro_matrix_audit (
+    run_id VARCHAR, canonical_secid VARCHAR, horizon INTEGER, metrics_json JSON,
+    calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(run_id,canonical_secid,horizon)
+);
+CREATE TABLE IF NOT EXISTS macro_ablation_results (
+    run_id VARCHAR, canonical_secid VARCHAR, horizon INTEGER, block_name VARCHAR,
+    sample_type VARCHAR, period VARCHAR, metrics_json JSON,
+    calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(run_id,canonical_secid,horizon,block_name,sample_type,period)
+);
+CREATE TABLE IF NOT EXISTS macro_coefficient_audit (
+    run_id VARCHAR, canonical_secid VARCHAR, horizon INTEGER, block_name VARCHAR,
+    feature_name VARCHAR, metrics_json JSON, calculation_version VARCHAR,
+    calculated_at TIMESTAMP,
+    PRIMARY KEY(run_id,canonical_secid,horizon,block_name,feature_name)
+);
+CREATE TABLE IF NOT EXISTS macro_regime_audit (
+    run_id VARCHAR, canonical_secid VARCHAR, horizon INTEGER, regime VARCHAR,
+    metrics_json JSON, calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(run_id,canonical_secid,horizon,regime)
+);
+CREATE TABLE IF NOT EXISTS macro_feature_audit (
+    run_id VARCHAR, canonical_secid VARCHAR, horizon INTEGER, block_name VARCHAR,
+    status VARCHAR, reason VARCHAR, evidence_json JSON, calculation_version VARCHAR,
+    calculated_at TIMESTAMP,
+    PRIMARY KEY(run_id,canonical_secid,horizon,block_name)
+);
+CREATE TABLE IF NOT EXISTS macro_audit_runs (
+    run_id VARCHAR PRIMARY KEY, calculation_version VARCHAR, started_at TIMESTAMP,
+    finished_at TIMESTAMP, duration_seconds DOUBLE, status VARCHAR, details_json JSON
+);
 """
 
 

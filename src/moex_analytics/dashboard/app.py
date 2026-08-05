@@ -67,6 +67,7 @@ top[3].metric(
 )
 
 pages = {
+    "Аудит макромодели": macro.render_audit,
     "Макроэкономика": macro.render_macro,
     "Макрофакторы инструмента": macro.render_instrument_factors,
     "Прогнозные диапазоны": macro.render_forecasts,

@@ -31,6 +31,7 @@ from .database import (
 )
 from .features import calculate_all as calculate_features
 from .forward_returns import calculate_all as calculate_forward_returns
+from .macro.audit import run_audit as run_macro_audit
 from .macro.experiment import calculate_forecasts
 from .macro.experiment import validate_all as validate_macro_models
 from .macro.feature_store import calculate_all as calculate_macro_features
@@ -143,6 +144,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("validate-macro-models")
     sub.add_parser("calculate-forecast-ranges")
     sub.add_parser("macro-status")
+    sub.add_parser("audit-macro-model")
     return parser
 
 
@@ -319,6 +321,7 @@ def main() -> None:
         "validate-macro-models",
         "calculate-forecast-ranges",
         "macro-status",
+        "audit-macro-model",
     }:
         init_database()
         with connection() as con:
@@ -335,6 +338,8 @@ def main() -> None:
                 print({"model_result_rows": validate_macro_models(con)})
             elif args.command == "calculate-forecast-ranges":
                 print({"forecast_rows": calculate_forecasts(con)})
+            elif args.command == "audit-macro-model":
+                print(run_macro_audit(con))
             else:
                 print(
                     {
