@@ -173,7 +173,7 @@ def test_full_calculation_pipeline():
     con.executemany("INSERT INTO daily_returns VALUES (?,?,?,?,?,?,?,?,?,?)", returns)
     assert calculate_features(con) == 640
     assert calculate_regimes(con) == 320
-    assert calculate_forward(con) == 3200
+    assert calculate_forward(con) == 3840
     from moex_analytics.analogues import calculate_all as calculate_analogues
 
     assert calculate_analogues(con) > 0

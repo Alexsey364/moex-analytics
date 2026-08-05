@@ -45,3 +45,38 @@ analytics:
     development_end: 2015-12-31
     validation_end: 2020-12-31
     out_of_sample_start: 2021-01-01
+macro:
+  calculation_version: macro-pit-v1
+  model_version: macro-model-v1
+  cutoff:
+    next_open: "09:50:00"
+    next_close: "18:40:00"
+    timezone: Europe/Moscow
+  horizons: [1, 5, 20, 60, 120, 250]
+  walk_forward:
+    minimum_train_sessions: 750
+    test_sessions: 250
+    step_sessions: 250
+    untouched_holdout_start: 2024-01-01
+  series:
+    - {series_id: cbr_usd_rub, source: cbr, code: R01235, point_in_time_safe: true}
+    - {series_id: cbr_eur_rub, source: cbr, code: R01239, point_in_time_safe: true}
+    - {series_id: cbr_cny_rub, source: cbr, code: R01375, point_in_time_safe: true}
+    - {series_id: cbr_key_rate, source: cbr, code: key_rate, point_in_time_safe: true}
+    - {series_id: cbr_ruonia, source: cbr, code: ruonia, point_in_time_safe: true}
+    - {series_id: rosstat_cpi_yoy, source: rosstat, code: cpi_yoy, point_in_time_safe: false}
+    - {series_id: rosstat_cpi_mom, source: rosstat, code: cpi_mom, point_in_time_safe: false}
+    - {series_id: moex_cny_rub, source: moex, code: CNYRUB_TOM, point_in_time_safe: true}
+    - {series_id: moex_usd_rub, source: moex, code: USDRUB_TOM, point_in_time_safe: true}
+    - {series_id: moex_rgbi, source: moex, code: RGBI, point_in_time_safe: true}
+    - {series_id: moex_ofz_3y, source: moex, code: RUGBITR3Y, point_in_time_safe: true}
+    - {series_id: moex_ofz_5y, source: moex, code: RUGBITR5Y, point_in_time_safe: true}
+    - {series_id: moex_ofz_10y, source: moex, code: RUGBITR10Y, point_in_time_safe: true}
+    - {series_id: moex_finance, source: moex, code: MOEXFN, point_in_time_safe: true}
+    - {series_id: moex_oil_gas, source: moex, code: MOEXOG, point_in_time_safe: true}
+    - {series_id: moex_metals, source: moex, code: MOEXMM, point_in_time_safe: true}
+    - {series_id: moex_consumer, source: moex, code: MOEXCN, point_in_time_safe: true}
+    - {series_id: moex_transport, source: moex, code: MOEXTN, point_in_time_safe: true}
+    - {series_id: moex_power, source: moex, code: MOEXEU, point_in_time_safe: true}
+    - {series_id: external_brent, source: external, code: brent, point_in_time_safe: false}
+    - {series_id: external_gold, source: external, code: gold, point_in_time_safe: false}

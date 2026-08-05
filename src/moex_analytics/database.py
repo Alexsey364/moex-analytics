@@ -104,6 +104,66 @@ CREATE TABLE IF NOT EXISTS analytics_runs (
     finished_at TIMESTAMP, duration_seconds DOUBLE, rows_written BIGINT,
     status VARCHAR, details_json JSON
 );
+CREATE TABLE IF NOT EXISTS macro_series (
+    series_id VARCHAR PRIMARY KEY, name VARCHAR, unit VARCHAR, frequency VARCHAR,
+    source VARCHAR, endpoint VARCHAR, start_date DATE, publication_rule VARCHAR,
+    revision_rule VARCHAR, is_point_in_time_safe BOOLEAN, notes VARCHAR,
+    updated_at TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS macro_observations (
+    series_id VARCHAR, observation_date DATE, release_date DATE,
+    available_from TIMESTAMPTZ, value DOUBLE, vintage VARCHAR, loaded_at TIMESTAMP,
+    source VARCHAR, PRIMARY KEY(series_id, observation_date, vintage)
+);
+CREATE TABLE IF NOT EXISTS macro_releases (
+    series_id VARCHAR, observation_date DATE, release_date DATE,
+    available_from TIMESTAMPTZ, vintage VARCHAR, source VARCHAR, loaded_at TIMESTAMP,
+    PRIMARY KEY(series_id, observation_date, vintage)
+);
+CREATE TABLE IF NOT EXISTS macro_features (
+    trade_date DATE, canonical_secid VARCHAR, horizon INTEGER, features_json JSON,
+    source_dates_json JSON, available_at TIMESTAMPTZ, calculation_version VARCHAR,
+    calculated_at TIMESTAMP, PRIMARY KEY(trade_date,canonical_secid,horizon,calculation_version)
+);
+CREATE SEQUENCE IF NOT EXISTS macro_load_log_id_seq START 1;
+CREATE TABLE IF NOT EXISTS macro_load_log (
+    id BIGINT PRIMARY KEY DEFAULT nextval('macro_load_log_id_seq'), run_type VARCHAR,
+    started_at TIMESTAMP, finished_at TIMESTAMP, rows_received BIGINT,
+    rows_inserted BIGINT, status VARCHAR, error_message VARCHAR, details_json JSON
+);
+CREATE SEQUENCE IF NOT EXISTS macro_quality_issue_id_seq START 1;
+CREATE TABLE IF NOT EXISTS macro_quality_issues (
+    id BIGINT PRIMARY KEY DEFAULT nextval('macro_quality_issue_id_seq'), series_id VARCHAR,
+    observation_date DATE, issue_type VARCHAR, description VARCHAR,
+    detected_at TIMESTAMP, severity VARCHAR
+);
+CREATE TABLE IF NOT EXISTS event_calendar (
+    event_id VARCHAR PRIMARY KEY, event_type VARCHAR, country VARCHAR,
+    related_instrument VARCHAR, scheduled_date DATE, actual_release_at TIMESTAMPTZ,
+    source VARCHAR, status VARCHAR, importance VARCHAR, loaded_at TIMESTAMP, notes VARCHAR
+);
+CREATE TABLE IF NOT EXISTS macro_model_results (
+    canonical_secid VARCHAR, horizon INTEGER, model_type VARCHAR, fold INTEGER,
+    period VARCHAR, train_end DATE, test_start DATE, test_end DATE, metrics_json JSON,
+    calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(canonical_secid,horizon,model_type,fold,period,calculation_version)
+);
+CREATE TABLE IF NOT EXISTS forecast_ranges (
+    as_of_date DATE, canonical_secid VARCHAR, horizon INTEGER, current_price DOUBLE,
+    median_return DOUBLE, lower_50 DOUBLE, upper_50 DOUBLE, lower_80 DOUBLE,
+    upper_80 DOUBLE, lower_90 DOUBLE, upper_90 DOUBLE, positive_frequency DOUBLE,
+    lower_price_50 DOUBLE, upper_price_50 DOUBLE, lower_price_80 DOUBLE,
+    upper_price_80 DOUBLE, lower_price_90 DOUBLE, upper_price_90 DOUBLE,
+    model_quality VARCHAR, baseline VARCHAR, available_at TIMESTAMPTZ,
+    calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(as_of_date,canonical_secid,horizon,calculation_version)
+);
+CREATE TABLE IF NOT EXISTS experimental_scores (
+    trade_date DATE, canonical_secid VARCHAR, macro_score DOUBLE,
+    combined_score DOUBLE, improvement_proven BOOLEAN, explanation_json JSON,
+    calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(trade_date,canonical_secid,calculation_version)
+);
 """
 
 

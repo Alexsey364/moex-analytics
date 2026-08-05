@@ -10,7 +10,7 @@ import pandas as pd
 
 from .config import load_settings
 
-HORIZONS = (5, 20, 60, 120, 250)
+HORIZONS = (1, 5, 20, 60, 120, 250)
 
 
 def calculate_forward_frame(frame: pd.DataFrame, horizons: tuple[int, ...] = HORIZONS) -> pd.DataFrame:

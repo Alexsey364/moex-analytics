@@ -29,6 +29,7 @@ from moex_analytics.dashboard.pages import (
     data_quality,
     database_status,
     instrument,
+    macro,
     methodology,
     overview,
     update_data,
@@ -66,6 +67,11 @@ top[3].metric(
 )
 
 pages = {
+    "Макроэкономика": macro.render_macro,
+    "Макрофакторы инструмента": macro.render_instrument_factors,
+    "Прогнозные диапазоны": macro.render_forecasts,
+    "Сравнение моделей": macro.render_comparison,
+    "Календарь событий": macro.render_events,
     "Аналитика инструмента": analytics.render_summary,
     "Факторы": analytics.render_factors,
     "Исторические аналоги": analytics.render_analogues,

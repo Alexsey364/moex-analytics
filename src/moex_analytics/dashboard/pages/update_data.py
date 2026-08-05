@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 import streamlit as st
 
 from ...analogues import calculate_all as calculate_analogues
@@ -13,6 +15,11 @@ from ...database import (
 )
 from ...features import calculate_all as calculate_features
 from ...forward_returns import calculate_all as calculate_forward_returns
+from ...macro.experiment import calculate_forecasts
+from ...macro.experiment import validate_all as validate_macro_models
+from ...macro.feature_store import calculate_all as calculate_macro_features
+from ...macro.loader import discover as discover_macro
+from ...macro.loader import download as download_macro
 from ...market_regime import calculate_all as calculate_regimes
 from ...moex_client import MoexClient
 from ...returns import calculate_all
@@ -55,19 +62,31 @@ def _analytics(action):
         return action(con)
 
 
+def _macro_download():
+    with connection() as con:
+        discover_macro(con)
+        populated = con.execute("SELECT count(*) FROM macro_observations").fetchone()[0]
+        start = date.today() - timedelta(days=14) if populated else date(2000, 1, 1)
+        return download_macro(con, start, date.today())
+
+
 def full_update_steps(tickers):
     return [
         ("Проверка соединения", _connection_check),
         ("Котировки", lambda: _quotes(tickers)),
         ("Дивиденды", lambda: _dividends(tickers)),
+        ("Макроданные и события", _macro_download),
         ("Канонический ряд", _canonical),
         ("Доходности", _returns),
         ("Контроль качества", _quality),
         ("Факторы", lambda: _analytics(calculate_features)),
+        ("Макрофакторы", lambda: _analytics(calculate_macro_features)),
         ("Режимы рынка", lambda: _analytics(calculate_regimes)),
         ("Будущие доходности", lambda: _analytics(calculate_forward_returns)),
         ("Исторические аналоги", lambda: _analytics(calculate_analogues)),
         ("Итоговые оценки", lambda: _analytics(calculate_scores)),
+        ("Walk-forward модели", lambda: _analytics(validate_macro_models)),
+        ("Прогнозные диапазоны", lambda: _analytics(calculate_forecasts)),
     ]
 
 

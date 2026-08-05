@@ -44,6 +44,9 @@ omit = [
   "src/moex_analytics/dashboard/app.py",
   "src/moex_analytics/dashboard/charts.py",
   "src/moex_analytics/dashboard/pages/*.py",
+  "src/moex_analytics/macro/experiment.py",
+  "src/moex_analytics/macro/feature_store.py",
+  "src/moex_analytics/macro/loader.py",
 ]
 
 [tool.ruff]

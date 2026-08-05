@@ -31,6 +31,11 @@ from .database import (
 )
 from .features import calculate_all as calculate_features
 from .forward_returns import calculate_all as calculate_forward_returns
+from .macro.experiment import calculate_forecasts
+from .macro.experiment import validate_all as validate_macro_models
+from .macro.feature_store import calculate_all as calculate_macro_features
+from .macro.loader import discover as discover_macro
+from .macro.loader import download as download_macro
 from .market_regime import calculate_all as calculate_regimes
 from .moex_client import MoexClient
 from .returns import calculate_all
@@ -129,6 +134,15 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("calculate-forward-returns")
     sub.add_parser("calculate-analytics")
     sub.add_parser("analytics-status")
+    sub.add_parser("discover-macro")
+    for name in ("download-macro", "update-macro"):
+        command = sub.add_parser(name)
+        command.add_argument("--from-date")
+        command.add_argument("--to-date")
+    sub.add_parser("calculate-macro-features")
+    sub.add_parser("validate-macro-models")
+    sub.add_parser("calculate-forecast-ranges")
+    sub.add_parser("macro-status")
     return parser
 
 
@@ -297,6 +311,42 @@ def main() -> None:
                 ],
             )
             print({"duration_seconds": duration, "rows": rows, "config_hash": config_hash})
+    elif args.command in {
+        "discover-macro",
+        "download-macro",
+        "update-macro",
+        "calculate-macro-features",
+        "validate-macro-models",
+        "calculate-forecast-ranges",
+        "macro-status",
+    }:
+        init_database()
+        with connection() as con:
+            if args.command == "discover-macro":
+                print({"series": discover_macro(con)})
+            elif args.command in {"download-macro", "update-macro"}:
+                end = date.fromisoformat(args.to_date) if args.to_date else date.today()
+                start = date.fromisoformat(args.from_date) if args.from_date else date(1992, 1, 1)
+                discover_macro(con)
+                print(download_macro(con, start, end))
+            elif args.command == "calculate-macro-features":
+                print({"macro_feature_rows": calculate_macro_features(con)})
+            elif args.command == "validate-macro-models":
+                print({"model_result_rows": validate_macro_models(con)})
+            elif args.command == "calculate-forecast-ranges":
+                print({"forecast_rows": calculate_forecasts(con)})
+            else:
+                print(
+                    {
+                        "series": con.execute("SELECT count(*) FROM macro_series").fetchone()[0],
+                        "observations": con.execute("SELECT count(*) FROM macro_observations").fetchone()[0],
+                        "features": con.execute("SELECT count(*) FROM macro_features").fetchone()[0],
+                        "forecasts": con.execute("SELECT count(*) FROM forecast_ranges").fetchone()[0],
+                        "latest_load": con.execute("SELECT max(finished_at) FROM macro_load_log").fetchone()[
+                            0
+                        ],
+                    }
+                )
     elif args.command == "dashboard":
         app = Path(__file__).parent / "dashboard" / "app.py"
         subprocess.run(
