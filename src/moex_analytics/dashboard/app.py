@@ -33,6 +33,7 @@ from moex_analytics.dashboard.pages import (
     macro,
     methodology,
     overview,
+    sber_decision,
     update_data,
 )
 from moex_analytics.database import database_path, init_database
@@ -68,6 +69,13 @@ top[3].metric(
 )
 
 pages = {
+    "Решение по SBER": sber_decision.render_decision,
+    "МСФО и РСБУ SBER": sber_decision.render_reporting,
+    "Дивиденд SBER": sber_decision.render_dividend,
+    "Оценка SBER": sber_decision.render_valuation,
+    "Зоны покупки": sber_decision.render_zones,
+    "Триггеры решения": sber_decision.render_triggers,
+    "Историческая проверка решения": sber_decision.render_backtest,
     "История отчётности SBER": fundamentals.render_reporting_history,
     "История фундаментала SBER": fundamentals.render_fundamental_history,
     "Текущая оценка SBER": fundamentals.render_current_valuation,

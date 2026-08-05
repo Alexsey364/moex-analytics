@@ -1,0 +1,15 @@
+expanded_sources:
+  secid: SBER
+  earliest_year: 1997
+  standards: [IFRS, RAS]
+  official_only: true
+  sources:
+    - {name: Sber Investor Relations, url: "https://www.sberbank.com/investor-relations/reports-and-publications"}
+    - {name: MOEX issuer documents, url: "https://www.moex.com/ru/listing/emidocs.aspx?id=484"}
+    - {name: Interfax disclosure, url: "https://www.e-disclosure.ru/portal/company.aspx?id=3043"}
+    - {name: Bank of Russia, url: "https://cbr.ru/banking_sector/credit/coinfo/f807/1904/"}
+  rules:
+    preserve_partial: true
+    automatic_use_requires_validation: true
+    separate_standards: true
+    vague_guidance_requires_manual_review: true

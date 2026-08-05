@@ -57,6 +57,17 @@ from .macro.loader import download as download_macro
 from .market_regime import calculate_all as calculate_regimes
 from .moex_client import MoexClient
 from .returns import calculate_all
+from .sber_decision.engine import (
+    backtest as backtest_sber_decision,
+)
+from .sber_decision.engine import (
+    build_daily_state,
+    calculate_dividend_outlook,
+    calculate_ensemble,
+)
+from .sber_decision.engine import (
+    calculate as calculate_sber_decision,
+)
 from .scoring import calculate_all as calculate_scores
 
 
@@ -185,6 +196,16 @@ def build_parser() -> argparse.ArgumentParser:
         command = sub.add_parser(name)
         if name == "import-sber-reviewed-data":
             command.add_argument("path", type=Path, nargs="?")
+    for name in (
+        "update-sber-expanded-data",
+        "build-sber-daily-state",
+        "calculate-sber-dividend-outlook",
+        "calculate-sber-decision",
+        "backtest-sber-decision",
+        "sber-decision-status",
+        "update-sber-decision",
+    ):
+        sub.add_parser(name)
     return parser
 
 
@@ -485,6 +506,56 @@ def main() -> None:
                 print(sber_history_status(con))
             else:
                 print(update_sber_fundamentals(con))
+    elif args.command in {
+        "update-sber-expanded-data",
+        "build-sber-daily-state",
+        "calculate-sber-dividend-outlook",
+        "calculate-sber-decision",
+        "backtest-sber-decision",
+        "sber-decision-status",
+        "update-sber-decision",
+    }:
+        init_database()
+        with connection() as con:
+            if args.command == "build-sber-daily-state":
+                print(build_daily_state(con))
+            elif args.command == "calculate-sber-dividend-outlook":
+                print(calculate_dividend_outlook(con))
+            elif args.command == "calculate-sber-decision":
+                print(calculate_sber_decision(con))
+            elif args.command == "backtest-sber-decision":
+                print(backtest_sber_decision(con))
+            elif args.command == "sber-decision-status":
+                print(
+                    con.execute(
+                        "SELECT * FROM sber_decision_results ORDER BY as_of_date DESC LIMIT 1"
+                    ).fetchone()
+                )
+            elif args.command == "update-sber-expanded-data":
+                print(update_sber_fundamentals(con))
+            else:
+                started = time.perf_counter()
+                history = update_sber_fundamentals(con)
+                state = build_daily_state(con)
+                dividend = calculate_dividend_outlook(con)
+                valuation = calculate_fact_sber_valuation(
+                    con, Path(__file__).parents[2] / "config" / "sber_fundamental_history.yaml"
+                )
+                ensemble = calculate_ensemble(con)
+                decision = calculate_sber_decision(con)
+                backtest = backtest_sber_decision(con)
+                print(
+                    {
+                        "history": history,
+                        "state": state,
+                        "dividend": dividend,
+                        "valuation": valuation,
+                        "ensemble": ensemble,
+                        "decision": decision,
+                        "backtest": backtest,
+                        "duration_seconds": time.perf_counter() - started,
+                    }
+                )
     elif args.command == "dashboard":
         app = Path(__file__).parent / "dashboard" / "app.py"
         subprocess.run(
