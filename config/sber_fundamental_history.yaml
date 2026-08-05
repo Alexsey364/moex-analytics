@@ -1,0 +1,8 @@
+sber_fact_scenarios:
+  version: sber-fact-valuation-v1
+  notes: Rules adjust validated facts; they do not contain a standalone profit forecast.
+  scenarios:
+    optimistic: {profit_multiplier: 1.10, roe_multiplier: 1.05, pe_quartile: 3, payout_multiplier: 1.05, cost_of_equity: 0.175, growth: 0.04}
+    base: {profit_multiplier: 1.00, roe_multiplier: 1.00, pe_quartile: 2, payout_multiplier: 1.00, cost_of_equity: 0.21, growth: 0.03}
+    conservative: {profit_multiplier: 0.85, roe_multiplier: 0.90, pe_quartile: 1, payout_multiplier: 0.85, cost_of_equity: 0.245, growth: 0.02}
+    stress: {profit_multiplier: 0.60, roe_multiplier: 0.70, pe_quartile: 1, payout_multiplier: 0.60, cost_of_equity: 0.30, growth: 0.00}

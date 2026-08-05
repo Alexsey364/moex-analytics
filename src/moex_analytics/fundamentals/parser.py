@@ -24,6 +24,18 @@ REQUIRED_COLUMNS = {
 
 
 def parse_frame(frame: pd.DataFrame) -> list[FundamentalObservation]:
+    controlled_review = "verification_status" in frame.columns
+    if controlled_review:
+        frame = frame[frame["verification_status"] == "validated"].copy()
+        frame["report_type"] = frame.apply(
+            lambda row: (
+                "annual"
+                if str(row["period_start"])[5:10] == "01-01" and str(row["period_end"])[5:10] == "12-31"
+                else "interim"
+            ),
+            axis=1,
+        )
+        frame["source"] = "controlled_review"
     missing = REQUIRED_COLUMNS - set(frame.columns)
     if missing:
         raise ValueError(f"Missing required columns: {', '.join(sorted(missing))}")
@@ -53,5 +65,7 @@ def parse_file(path: Path) -> list[FundamentalObservation]:
     if path.suffix.lower() == ".csv":
         return parse_frame(pd.read_csv(path, sep=None, engine="python"))
     if path.suffix.lower() in {".xlsx", ".xls"}:
-        return parse_frame(pd.read_excel(path))
+        workbook = pd.ExcelFile(path)
+        sheet = "Review" if "Review" in workbook.sheet_names else workbook.sheet_names[0]
+        return parse_frame(pd.read_excel(workbook, sheet_name=sheet))
     raise ValueError("Only controlled CSV/XLSX imports are supported; PDF requires a verified fixture")

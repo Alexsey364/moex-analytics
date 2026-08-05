@@ -68,6 +68,12 @@ top[3].metric(
 )
 
 pages = {
+    "История отчётности SBER": fundamentals.render_reporting_history,
+    "История фундаментала SBER": fundamentals.render_fundamental_history,
+    "Текущая оценка SBER": fundamentals.render_current_valuation,
+    "История оценок SBER": fundamentals.render_valuation_history,
+    "История ошибок фундаментала": fundamentals.render_error_history,
+    "Качество фундаментальных данных": fundamentals.render_fundamental_quality,
     "Фундаментал SBER": fundamentals.render_fundamental,
     "Мультипликаторы SBER": fundamentals.render_multiples,
     "Сценарная оценка SBER": fundamentals.render_scenarios,

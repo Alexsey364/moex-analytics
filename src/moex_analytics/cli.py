@@ -31,9 +31,20 @@ from .database import (
 )
 from .features import calculate_all as calculate_features
 from .forward_returns import calculate_all as calculate_forward_returns
+from .fundamentals.backtest import run as backtest_sber_fundamentals
+from .fundamentals.confidence import calculate_current as calculate_sber_confidence
+from .fundamentals.derived import build as build_sber_fundamental_history
+from .fundamentals.documents import discover as discover_sber_reports
+from .fundamentals.documents import download as download_sber_reports
+from .fundamentals.fact_scenarios import calculate as calculate_fact_sber_valuation
+from .fundamentals.history import import_validated as import_sber_validated
+from .fundamentals.history import parse_downloaded as parse_sber_reports
+from .fundamentals.history import validate as validate_sber_reports
 from .fundamentals.loader import discover as discover_sber_fundamentals
 from .fundamentals.loader import download as download_sber_fundamentals
 from .fundamentals.loader import import_report as import_sber_report
+from .fundamentals.pipeline import status as sber_history_status
+from .fundamentals.pipeline import update as update_sber_fundamentals
 from .fundamentals.point_in_time import build_snapshots as build_fundamental_snapshots
 from .fundamentals.scenarios import calculate_all as calculate_sber_valuation
 from .fundamentals.validation import validate_all as validate_sber_valuation
@@ -159,6 +170,21 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("calculate-sber-valuation")
     sub.add_parser("validate-sber-valuation")
     sub.add_parser("sber-fundamental-status")
+    for name in (
+        "discover-sber-reports",
+        "download-sber-reports",
+        "parse-sber-reports",
+        "export-sber-review-template",
+        "import-sber-reviewed-data",
+        "validate-sber-reports",
+        "build-sber-fundamental-history",
+        "backtest-sber-fundamentals",
+        "sber-fundamental-history-status",
+        "update-sber-fundamentals",
+    ):
+        command = sub.add_parser(name)
+        if name == "import-sber-reviewed-data":
+            command.add_argument("path", type=Path, nargs="?")
     return parser
 
 
@@ -409,6 +435,56 @@ def main() -> None:
                             "valuations": con.execute("SELECT count(*) FROM valuation_results").fetchone()[0],
                         }
                     )
+    elif args.command in {
+        "discover-sber-reports",
+        "download-sber-reports",
+        "parse-sber-reports",
+        "export-sber-review-template",
+        "import-sber-reviewed-data",
+        "validate-sber-reports",
+        "build-sber-fundamental-history",
+        "backtest-sber-fundamentals",
+        "sber-fundamental-history-status",
+        "update-sber-fundamentals",
+    }:
+        init_database()
+        template = Path(__file__).parents[2] / "data" / "templates" / "sber_fundamentals_import_template.xlsx"
+        with connection() as con:
+            if args.command == "discover-sber-reports":
+                print(discover_sber_reports(con))
+            elif args.command == "download-sber-reports":
+                raw = Path(__file__).parents[2] / "data" / "raw" / "fundamentals" / "sber"
+                print(download_sber_reports(con, raw))
+            elif args.command == "parse-sber-reports":
+                print(parse_sber_reports(con))
+            elif args.command == "export-sber-review-template":
+                print({"template": str(template), "exists": template.exists()})
+            elif args.command == "import-sber-reviewed-data":
+                if not args.path:
+                    raise SystemExit("Provide a reviewed CSV/XLSX path")
+                print(import_sber_report(con, args.path))
+            elif args.command == "validate-sber-reports":
+                print(validate_sber_reports(con))
+            elif args.command == "build-sber-fundamental-history":
+                imported = import_sber_validated(con)
+                snapshots = build_fundamental_snapshots(con)
+                print(
+                    {
+                        "imported": imported,
+                        "snapshots": snapshots,
+                        "derived": build_sber_fundamental_history(con),
+                        "confidence": calculate_sber_confidence(con),
+                        "valuation": calculate_fact_sber_valuation(
+                            con, Path(__file__).parents[2] / "config" / "sber_fundamental_history.yaml"
+                        ),
+                    }
+                )
+            elif args.command == "backtest-sber-fundamentals":
+                print(backtest_sber_fundamentals(con))
+            elif args.command == "sber-fundamental-history-status":
+                print(sber_history_status(con))
+            else:
+                print(update_sber_fundamentals(con))
     elif args.command == "dashboard":
         app = Path(__file__).parent / "dashboard" / "app.py"
         subprocess.run(

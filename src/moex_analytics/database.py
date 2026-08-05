@@ -260,6 +260,56 @@ CREATE TABLE IF NOT EXISTS fundamental_runs (
     started_at TIMESTAMP, finished_at TIMESTAMP, duration_seconds DOUBLE,
     rows_received BIGINT, rows_written BIGINT, status VARCHAR, details_json JSON
 );
+CREATE TABLE IF NOT EXISTS fundamental_documents (
+    document_id VARCHAR PRIMARY KEY, secid VARCHAR, document_type VARCHAR,
+    accounting_standard VARCHAR, period_start DATE, period_end DATE,
+    publication_date DATE, available_from TIMESTAMPTZ, title VARCHAR,
+    source_url VARCHAR, local_path VARCHAR, file_hash VARCHAR, mime_type VARCHAR,
+    parser_version VARCHAR, processing_status VARCHAR, validation_status VARCHAR,
+    revision_id VARCHAR, loaded_at TIMESTAMP, notes VARCHAR,
+    UNIQUE(source_url,revision_id)
+);
+CREATE TABLE IF NOT EXISTS fundamental_metric_values (
+    document_id VARCHAR, secid VARCHAR, metric_id VARCHAR, raw_value DOUBLE,
+    raw_unit VARCHAR, normalized_value DOUBLE, normalized_unit VARCHAR,
+    normalization_rule VARCHAR, accounting_standard VARCHAR, period_start DATE,
+    period_end DATE, publication_date DATE, available_from TIMESTAMPTZ,
+    source_page VARCHAR, source_table VARCHAR, source_note VARCHAR,
+    revision_id VARCHAR, quality_status VARCHAR, loaded_at TIMESTAMP,
+    PRIMARY KEY(document_id,metric_id,revision_id)
+);
+CREATE TABLE IF NOT EXISTS fundamental_accounting_regimes (
+    regime_id VARCHAR PRIMARY KEY, accounting_regime VARCHAR,
+    reporting_methodology_version VARCHAR, comparable_from DATE, comparable_to DATE,
+    comparability_status VARCHAR, comparability_notes VARCHAR
+);
+CREATE TABLE IF NOT EXISTS fundamental_confidence (
+    as_of_date DATE, secid VARCHAR, data_confidence DOUBLE,
+    valuation_confidence DOUBLE, backtest_confidence DOUBLE, components_json JSON,
+    calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(as_of_date,secid,calculation_version)
+);
+CREATE TABLE IF NOT EXISTS fundamental_backtest_results (
+    valuation_date DATE, secid VARCHAR, method VARCHAR, horizon INTEGER,
+    current_price DOUBLE, estimated_price DOUBLE, lower_price DOUBLE,
+    upper_price DOUBLE, future_price DOUBLE, total_return DOUBLE, confidence DOUBLE,
+    release_id VARCHAR, market_regime VARCHAR, calculation_version VARCHAR,
+    calculated_at TIMESTAMP,
+    PRIMARY KEY(valuation_date,secid,method,horizon,calculation_version)
+);
+CREATE TABLE IF NOT EXISTS fundamental_backtest_errors (
+    valuation_date DATE, secid VARCHAR, method VARCHAR, horizon INTEGER,
+    absolute_error DOUBLE, percentage_error DOUBLE, return_error DOUBLE,
+    direction_correct BOOLEAN, interval_hit BOOLEAN, confidence DOUBLE,
+    calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(valuation_date,secid,method,horizon,calculation_version)
+);
+CREATE TABLE IF NOT EXISTS fundamental_model_comparison (
+    period VARCHAR, model VARCHAR, horizon INTEGER, sample_size INTEGER,
+    mae DOUBLE, mape DOUBLE, sign_accuracy DOUBLE, interval_coverage DOUBLE,
+    average_width DOUBLE, calculation_version VARCHAR, calculated_at TIMESTAMP,
+    PRIMARY KEY(period,model,horizon,calculation_version)
+);
 """
 
 
