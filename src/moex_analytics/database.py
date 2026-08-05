@@ -66,6 +66,44 @@ CREATE TABLE IF NOT EXISTS trading_calendar (
     trade_date DATE, market VARCHAR, is_trading_day BOOLEAN, session_type VARCHAR,
     source VARCHAR, loaded_at TIMESTAMP, PRIMARY KEY(trade_date, market, session_type)
 );
+CREATE TABLE IF NOT EXISTS daily_features (
+    trade_date DATE, canonical_secid VARCHAR, features_json JSON,
+    calculation_version VARCHAR, calculated_at TIMESTAMP, source VARCHAR,
+    minimum_history INTEGER, PRIMARY KEY(trade_date, canonical_secid, calculation_version)
+);
+CREATE TABLE IF NOT EXISTS market_regimes (
+    trade_date DATE, regime VARCHAR, reasons_json JSON, values_json JSON,
+    calculation_version VARCHAR, calculated_at TIMESTAMP, source VARCHAR,
+    minimum_history INTEGER, PRIMARY KEY(trade_date, calculation_version)
+);
+CREATE TABLE IF NOT EXISTS forward_returns (
+    condition_date DATE, exit_date DATE, canonical_secid VARCHAR, horizon INTEGER,
+    price_return DOUBLE, total_return DOUBLE, max_drawdown DOUBLE, max_gain DOUBLE,
+    calculation_version VARCHAR, calculated_at TIMESTAMP, source VARCHAR,
+    minimum_history INTEGER,
+    PRIMARY KEY(condition_date, canonical_secid, horizon, calculation_version)
+);
+CREATE TABLE IF NOT EXISTS historical_analogue_results (
+    as_of_date DATE, canonical_secid VARCHAR, analogue_date DATE, rank INTEGER,
+    distance DOUBLE, similarity DOUBLE, regime VARCHAR,
+    calculation_version VARCHAR, calculated_at TIMESTAMP, source VARCHAR,
+    minimum_history INTEGER,
+    PRIMARY KEY(as_of_date, canonical_secid, analogue_date, calculation_version)
+);
+CREATE TABLE IF NOT EXISTS instrument_scores (
+    trade_date DATE, canonical_secid VARCHAR, total_score DOUBLE, status VARCHAR,
+    blocks_json JSON, positive_factors_json JSON, negative_factors_json JSON,
+    statistics_quality VARCHAR, calculation_version VARCHAR, calculated_at TIMESTAMP,
+    source VARCHAR, minimum_history INTEGER,
+    PRIMARY KEY(trade_date, canonical_secid, calculation_version)
+);
+CREATE SEQUENCE IF NOT EXISTS analytics_run_id_seq START 1;
+CREATE TABLE IF NOT EXISTS analytics_runs (
+    id BIGINT PRIMARY KEY DEFAULT nextval('analytics_run_id_seq'), run_type VARCHAR,
+    calculation_version VARCHAR, config_hash VARCHAR, started_at TIMESTAMP,
+    finished_at TIMESTAMP, duration_seconds DOUBLE, rows_written BIGINT,
+    status VARCHAR, details_json JSON
+);
 """
 
 

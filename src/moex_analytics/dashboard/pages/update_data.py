@@ -1,5 +1,6 @@
 import streamlit as st
 
+from ...analogues import calculate_all as calculate_analogues
 from ...canonical import build_canonical
 from ...cli import download_one
 from ...config import load_instruments, load_segments
@@ -10,8 +11,12 @@ from ...database import (
     insert_dividends,
     upsert_segments,
 )
+from ...features import calculate_all as calculate_features
+from ...forward_returns import calculate_all as calculate_forward_returns
+from ...market_regime import calculate_all as calculate_regimes
 from ...moex_client import MoexClient
 from ...returns import calculate_all
+from ...scoring import calculate_all as calculate_scores
 from ..state import run_update_steps
 
 
@@ -45,6 +50,11 @@ def _quality():
         return record_issues(con)
 
 
+def _analytics(action):
+    with connection() as con:
+        return action(con)
+
+
 def full_update_steps(tickers):
     return [
         ("Проверка соединения", _connection_check),
@@ -53,6 +63,11 @@ def full_update_steps(tickers):
         ("Канонический ряд", _canonical),
         ("Доходности", _returns),
         ("Контроль качества", _quality),
+        ("Факторы", lambda: _analytics(calculate_features)),
+        ("Режимы рынка", lambda: _analytics(calculate_regimes)),
+        ("Будущие доходности", lambda: _analytics(calculate_forward_returns)),
+        ("Исторические аналоги", lambda: _analytics(calculate_analogues)),
+        ("Итоговые оценки", lambda: _analytics(calculate_scores)),
     ]
 
 

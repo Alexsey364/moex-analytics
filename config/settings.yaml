@@ -12,3 +12,36 @@ moex_iss:
   retry_backoff_seconds: 1.0
   user_agent: moex-analytics/0.1.0
   page_size: 100
+analytics:
+  calculation_version: factors-regimes-v1
+  source: canonical_daily_prices
+  minimum_history: 250
+  annualization_sessions: 252
+  analogue_min_spacing: 20
+  analogue_count: 20
+  bootstrap_samples: 500
+  regime:
+    stress_drawdown: -0.20
+    stress_volatility_20: 0.35
+    recovery_return_20: 0.08
+    strong_trend_return_60: 0.10
+    moderate_trend_return_60: 0.03
+    flat_sma_distance: 0.03
+  scoring:
+    weights:
+      trend: 0.20
+      momentum: 0.15
+      relative_strength: 0.15
+      risk: 0.15
+      liquidity: 0.10
+      market_regime: 0.10
+      historical_analogues: 0.15
+    thresholds:
+      statistically_favorable: 0.45
+      moderately_favorable: 0.15
+      moderately_unfavorable: -0.15
+      statistically_unfavorable: -0.45
+  validation:
+    development_end: 2015-12-31
+    validation_end: 2020-12-31
+    out_of_sample_start: 2021-01-01

@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import subprocess
 import sys
+import time
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from .analogues import calculate_all as calculate_analogues
 from .calendar import rebuild_calendar
 from .canonical import build_canonical
-from .config import load_instruments, load_segments
+from .config import load_instruments, load_segments, load_settings
 from .data_quality import record_issues
 from .database import (
     connection,
@@ -25,8 +29,12 @@ from .database import (
     upsert_instruments,
     upsert_segments,
 )
+from .features import calculate_all as calculate_features
+from .forward_returns import calculate_all as calculate_forward_returns
+from .market_regime import calculate_all as calculate_regimes
 from .moex_client import MoexClient
 from .returns import calculate_all
+from .scoring import calculate_all as calculate_scores
 
 
 def instrument_by_id(secid: str) -> dict[str, Any]:
@@ -116,6 +124,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("calculate-returns")
     sub.add_parser("status")
     sub.add_parser("dashboard")
+    sub.add_parser("calculate-features")
+    sub.add_parser("calculate-regimes")
+    sub.add_parser("calculate-forward-returns")
+    sub.add_parser("calculate-analytics")
+    sub.add_parser("analytics-status")
     return parser
 
 
@@ -188,6 +201,102 @@ def main() -> None:
                    FROM instruments i ORDER BY i.secid"""
             ).fetchall()
             print({"rows": row_counts(con), "details": details})
+    elif args.command in {
+        "calculate-features",
+        "calculate-regimes",
+        "calculate-forward-returns",
+        "calculate-analytics",
+        "analytics-status",
+    }:
+        init_database()
+        with connection() as con:
+            if args.command == "analytics-status":
+                print(
+                    con.execute("""SELECT run_type,calculation_version,finished_at,
+                    duration_seconds,rows_written,status FROM analytics_runs
+                    ORDER BY id DESC LIMIT 10""").fetchall()
+                )
+                return
+            actions = {
+                "calculate-features": [("features", calculate_features)],
+                "calculate-regimes": [("regimes", calculate_regimes)],
+                "calculate-forward-returns": [("forward_returns", calculate_forward_returns)],
+                "calculate-analytics": [
+                    ("features", calculate_features),
+                    ("regimes", calculate_regimes),
+                    ("forward_returns", calculate_forward_returns),
+                    ("analogues", calculate_analogues),
+                    ("scores", calculate_scores),
+                ],
+            }[args.command]
+            started = time.perf_counter()
+            rows = {}
+            settings = load_settings()["analytics"]
+            config_hash = hashlib.sha256(
+                json.dumps(settings, sort_keys=True, default=str).encode()
+            ).hexdigest()[:16]
+            if args.command == "calculate-analytics":
+                source_state = con.execute(
+                    """SELECT count(*), max(trade_date), max(loaded_at)
+                    FROM canonical_daily_prices"""
+                ).fetchone()
+                latest_run = con.execute(
+                    """SELECT finished_at FROM analytics_runs
+                    WHERE run_type='calculate-analytics' AND calculation_version=?
+                      AND config_hash=? AND status='success'
+                    ORDER BY id DESC LIMIT 1""",
+                    [settings["calculation_version"], config_hash],
+                ).fetchone()
+                feature_state = con.execute(
+                    """SELECT count(*), max(trade_date) FROM daily_features
+                    WHERE calculation_version=?""",
+                    [settings["calculation_version"]],
+                ).fetchone()
+                source_is_unchanged = (
+                    latest_run
+                    and source_state[0] == feature_state[0]
+                    and source_state[1] == feature_state[1]
+                    and (source_state[2] is None or latest_run[0] >= source_state[2])
+                )
+                if source_is_unchanged:
+                    duration = time.perf_counter() - started
+                    details = {
+                        "mode": "incremental-no-change",
+                        "source_rows": source_state[0],
+                        "source_max_date": str(source_state[1]),
+                    }
+                    con.execute(
+                        """INSERT INTO analytics_runs(run_type,calculation_version,config_hash,
+                        started_at,finished_at,duration_seconds,rows_written,status,details_json)
+                        VALUES (?, ?, ?, current_timestamp, current_timestamp, ?, 0, 'success', ?)""",
+                        [
+                            args.command,
+                            settings["calculation_version"],
+                            config_hash,
+                            duration,
+                            json.dumps(details),
+                        ],
+                    )
+                    print({"duration_seconds": duration, "rows": {}, **details})
+                    return
+            for name, action in actions:
+                rows[name] = action(con)
+                print(name, rows[name])
+            duration = time.perf_counter() - started
+            con.execute(
+                """INSERT INTO analytics_runs(run_type,calculation_version,config_hash,
+                started_at,finished_at,duration_seconds,rows_written,status,details_json)
+                VALUES (?, ?, ?, current_timestamp, current_timestamp, ?, ?, 'success', ?)""",
+                [
+                    args.command,
+                    settings["calculation_version"],
+                    config_hash,
+                    duration,
+                    sum(rows.values()),
+                    json.dumps(rows),
+                ],
+            )
+            print({"duration_seconds": duration, "rows": rows, "config_hash": config_hash})
     elif args.command == "dashboard":
         app = Path(__file__).parent / "dashboard" / "app.py"
         subprocess.run(

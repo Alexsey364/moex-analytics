@@ -25,6 +25,7 @@ if get_script_run_ctx() is None:
 
 from moex_analytics.dashboard.data_access import DatabaseUnavailable, database_summary
 from moex_analytics.dashboard.pages import (
+    analytics,
     data_quality,
     database_status,
     instrument,
@@ -65,6 +66,11 @@ top[3].metric(
 )
 
 pages = {
+    "Аналитика инструмента": analytics.render_summary,
+    "Факторы": analytics.render_factors,
+    "Исторические аналоги": analytics.render_analogues,
+    "Режим рынка": analytics.render_regimes,
+    "Проверка модели": analytics.render_validation,
     "Обзор": overview.render,
     "Инструмент": instrument.render,
     "Качество данных": data_quality.render,
