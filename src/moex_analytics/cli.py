@@ -323,6 +323,25 @@ def build_parser() -> argparse.ArgumentParser:
         "update-predictive-foundation",
     ):
         sub.add_parser(name)
+    for name in (
+        "discover-historical-equity-universe",
+        "download-historical-equity-universe",
+        "build-point-in-time-universe",
+        "download-zcyc",
+        "build-zcyc-features",
+        "download-sber-futures-history",
+        "build-sber-continuous-futures",
+        "audit-sber-ifrs",
+        "prepare-sber-ifrs-review",
+        "audit-moex-options",
+        "download-sber-intraday",
+        "build-intraday-features",
+        "validate-critical-predictive-data",
+        "rerun-critical-data-ablation",
+        "critical-predictive-data-status",
+        "complete-sber-critical-data",
+    ):
+        sub.add_parser(name)
     return parser
 
 
@@ -775,6 +794,47 @@ def main() -> None:
                 result["lead_lag"] = build_lead_lag_diagnostics(con)
                 result["ablation"] = ablate_predictive_blocks(con)
             print(result)
+    elif args.command in {
+        "discover-historical-equity-universe",
+        "download-historical-equity-universe",
+        "build-point-in-time-universe",
+        "download-zcyc",
+        "build-zcyc-features",
+        "download-sber-futures-history",
+        "build-sber-continuous-futures",
+        "audit-sber-ifrs",
+        "prepare-sber-ifrs-review",
+        "audit-moex-options",
+        "download-sber-intraday",
+        "build-intraday-features",
+        "validate-critical-predictive-data",
+        "rerun-critical-data-ablation",
+        "critical-predictive-data-status",
+        "complete-sber-critical-data",
+    }:
+        from .critical_data import core as critical
+
+        init_database()
+        with connection() as con:
+            actions = {
+                "discover-historical-equity-universe": critical.discover_historical_equity_universe,
+                "download-historical-equity-universe": critical.discover_historical_equity_universe,
+                "build-point-in-time-universe": critical.validate_critical_predictive_data,
+                "download-zcyc": critical.download_zcyc,
+                "build-zcyc-features": critical.build_zcyc_features,
+                "download-sber-futures-history": critical.download_sber_futures_history,
+                "build-sber-continuous-futures": critical.build_sber_continuous_futures,
+                "audit-sber-ifrs": critical.audit_sber_ifrs,
+                "prepare-sber-ifrs-review": critical.audit_sber_ifrs,
+                "audit-moex-options": critical.audit_moex_options,
+                "download-sber-intraday": critical.download_sber_intraday,
+                "build-intraday-features": critical.build_intraday_features,
+                "validate-critical-predictive-data": critical.validate_critical_predictive_data,
+                "rerun-critical-data-ablation": critical.rerun_critical_data_ablation,
+                "critical-predictive-data-status": critical.status,
+                "complete-sber-critical-data": critical.complete_critical_data,
+            }
+            print(actions[args.command](con))
     elif args.command == "dashboard":
         app = Path(__file__).parent / "dashboard" / "app.py"
         subprocess.run(

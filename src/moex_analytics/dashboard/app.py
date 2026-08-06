@@ -26,6 +26,7 @@ if get_script_run_ctx() is None:
 from moex_analytics.dashboard.data_access import DatabaseUnavailable, database_summary
 from moex_analytics.dashboard.pages import (
     analytics,
+    critical_data,
     data_quality,
     database_status,
     fundamentals,
@@ -72,6 +73,17 @@ top[3].metric(
 )
 
 pages = {
+    "Историческая вселенная": critical_data.render_universe,
+    "Survivorship bias": critical_data.render_survivorship,
+    "Исторический финансовый сектор": critical_data.render_finance,
+    "Кривая ZCYC": critical_data.render_zcyc,
+    "Непрерывные фьючерсы SBER": critical_data.render_futures,
+    "Roll history": critical_data.render_rolls,
+    "МСФО SBER — архив": critical_data.render_ifrs,
+    "Опционы: доступность и качество": critical_data.render_options,
+    "Внутридневные сессии": critical_data.render_intraday,
+    "Готовность данных к прогнозу": critical_data.render_readiness,
+    "Повторный ablation": critical_data.render_ablation,
     "Карта данных прогноза": predictive_foundation.render_catalog,
     "Состояние всего рынка": predictive_foundation.render_market,
     "Ширина рынка": predictive_foundation.render_breadth,
