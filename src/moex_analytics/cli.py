@@ -68,6 +68,23 @@ from .sber_decision.engine import (
 from .sber_decision.engine import (
     calculate as calculate_sber_decision,
 )
+from .sber_intelligence.discovery import discover as discover_sber_information
+from .sber_intelligence.expectations import calculate_all as calculate_sber_expectations
+from .sber_intelligence.impact import build_impacts as calculate_sber_impacts
+from .sber_intelligence.loader import update as update_sber_information
+from .sber_intelligence.quality import run as validate_sber_events
+from .sber_intelligence.repository import (
+    build_live_state as build_sber_information_state,
+)
+from .sber_intelligence.repository import (
+    build_studies as build_sber_event_studies,
+)
+from .sber_intelligence.repository import (
+    calculate_reactions as calculate_sber_event_reactions,
+)
+from .sber_intelligence.repository import (
+    status as sber_information_status,
+)
 from .scoring import calculate_all as calculate_scores
 
 
@@ -204,6 +221,18 @@ def build_parser() -> argparse.ArgumentParser:
         "backtest-sber-decision",
         "sber-decision-status",
         "update-sber-decision",
+    ):
+        sub.add_parser(name)
+    for name in (
+        "discover-sber-information",
+        "update-sber-information",
+        "validate-sber-events",
+        "calculate-sber-event-reactions",
+        "calculate-sber-expectations",
+        "build-sber-information-state",
+        "recalculate-sber-after-events",
+        "sber-information-status",
+        "update-sber-intelligence",
     ):
         sub.add_parser(name)
     return parser
@@ -556,6 +585,40 @@ def main() -> None:
                         "duration_seconds": time.perf_counter() - started,
                     }
                 )
+    elif args.command in {
+        "discover-sber-information",
+        "update-sber-information",
+        "validate-sber-events",
+        "calculate-sber-event-reactions",
+        "calculate-sber-expectations",
+        "build-sber-information-state",
+        "recalculate-sber-after-events",
+        "sber-information-status",
+        "update-sber-intelligence",
+    }:
+        init_database()
+        with connection() as con:
+            if args.command == "discover-sber-information":
+                print(discover_sber_information(con))
+            elif args.command in {"update-sber-information", "update-sber-intelligence"}:
+                print(update_sber_information(con))
+            elif args.command == "validate-sber-events":
+                print(validate_sber_events(con))
+            elif args.command == "calculate-sber-event-reactions":
+                print(
+                    {
+                        "reactions": calculate_sber_event_reactions(con),
+                        "studies": build_sber_event_studies(con),
+                    }
+                )
+            elif args.command == "calculate-sber-expectations":
+                print(calculate_sber_expectations(con))
+            elif args.command == "build-sber-information-state":
+                print(build_sber_information_state(con))
+            elif args.command == "recalculate-sber-after-events":
+                print({"impacts": calculate_sber_impacts(con), "decision_influence": "weight_zero"})
+            else:
+                print(sber_information_status(con))
     elif args.command == "dashboard":
         app = Path(__file__).parent / "dashboard" / "app.py"
         subprocess.run(

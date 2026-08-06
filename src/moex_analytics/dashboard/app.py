@@ -34,6 +34,7 @@ from moex_analytics.dashboard.pages import (
     methodology,
     overview,
     sber_decision,
+    sber_intelligence,
     update_data,
 )
 from moex_analytics.database import database_path, init_database
@@ -69,6 +70,13 @@ top[3].metric(
 )
 
 pages = {
+    "Информационная лента SBER": sber_intelligence.render_feed,
+    "Календарь SBER": sber_intelligence.render_calendar,
+    "Реакция на события": sber_intelligence.render_reactions,
+    "Ожидания рынка": sber_intelligence.render_expectations,
+    "Что изменилось": sber_intelligence.render_changes,
+    "Оперативная статистика SBER": sber_intelligence.render_operational,
+    "Информационное качество": sber_intelligence.render_quality,
     "Решение по SBER": sber_decision.render_decision,
     "МСФО и РСБУ SBER": sber_decision.render_reporting,
     "Дивиденд SBER": sber_decision.render_dividend,

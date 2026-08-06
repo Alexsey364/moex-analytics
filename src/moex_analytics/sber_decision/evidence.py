@@ -80,6 +80,16 @@ def collect(con, as_of):
         Evidence(
             "data_quality", 0, confidence, "available", (), ("validated МСФО отсутствует",), state, as_of
         ),
+        Evidence(
+            "event_information",
+            0,
+            0,
+            "experimental_weight_zero",
+            (),
+            ("историческая полезность информационного слоя ещё не подтверждена",),
+            {},
+            as_of,
+        ),
         Evidence("macro", 0, 0, "rejected_excluded", (), ("добавочная ценность не доказана",), {}, as_of),
     ]
     return blocks, state

@@ -195,4 +195,4 @@ def test_integrated_decision_pipeline(con):
     assert calculate(con, as_of)["status"] == "no_change"
     replay = backtest(con)
     assert replay["rows"] > 0
-    assert con.execute("SELECT count(*) FROM sber_decision_evidence").fetchone()[0] == 10
+    assert con.execute("SELECT count(*) FROM sber_decision_evidence").fetchone()[0] == 11

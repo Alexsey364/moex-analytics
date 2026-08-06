@@ -13,7 +13,7 @@ from .rules import decide
 from .triggers import build as build_triggers
 from .zones import build_zones
 
-VERSION = "sber-decision-v4"
+VERSION = "sber-decision-v5"
 SHARES = 21_586_948_000.0
 
 

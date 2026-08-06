@@ -27,8 +27,8 @@ def decide(blocks: list[Evidence], *, critical_error: bool = False) -> Decision:
         status, fraction = "допустима небольшая начальная позиция", 0.1
     else:
         status, fraction = "наблюдать", 0
-    confidence = sum(b.confidence for b in blocks if b.block_id != "macro") / max(
-        len([b for b in blocks if b.block_id != "macro"]), 1
+    confidence = sum(b.confidence for b in blocks if b.block_id not in {"macro", "event_information"}) / max(
+        len([b for b in blocks if b.block_id not in {"macro", "event_information"}]), 1
     )
     confidence = max(0, confidence - 15 * len(conflicts))
     return Decision(status, 250, round(confidence, 1), fraction, tuple(conflicts))
