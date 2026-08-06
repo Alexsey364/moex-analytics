@@ -33,6 +33,7 @@ from moex_analytics.dashboard.pages import (
     macro,
     methodology,
     overview,
+    predictive_foundation,
     sber_decision,
     sber_intelligence,
     sber_operational,
@@ -71,6 +72,18 @@ top[3].metric(
 )
 
 pages = {
+    "Карта данных прогноза": predictive_foundation.render_catalog,
+    "Состояние всего рынка": predictive_foundation.render_market,
+    "Ширина рынка": predictive_foundation.render_breadth,
+    "Финансовый сектор": predictive_foundation.render_finance,
+    "Фьючерсы SBER": predictive_foundation.render_futures,
+    "Опционы и ожидаемая волатильность": predictive_foundation.render_options,
+    "Ставки и кривая ОФЗ": predictive_foundation.render_rates,
+    "Ликвидность и перетоки": predictive_foundation.render_liquidity,
+    "Межрыночные связи": predictive_foundation.render_cross_market,
+    "Структурные режимы": predictive_foundation.render_regimes,
+    "Полнота данных": predictive_foundation.render_coverage,
+    "Добавочная ценность блоков": predictive_foundation.render_ablation,
     "Оперативный бизнес SBER": sber_operational.render_business,
     "Nowcast SBER": sber_operational.render_nowcast,
     "Ранние предупреждения": sber_operational.render_warnings,

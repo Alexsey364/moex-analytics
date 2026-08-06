@@ -147,3 +147,11 @@ python -m venv .venv
 
 На странице «Обновление данных» доступны отдельные операции и полное последовательное
 обновление. Ошибка шага останавливает зависимые операции и показывается пользователю.
+
+## Predictive Data Foundation
+
+Команда python -m moex_analytics.cli update-predictive-foundation строит официальный source
+catalog, загружает широкую TQBR-вселенную, рассчитывает market breadth и SBER relative state,
+исследует FORTS, structural regimes, coverage и preliminary common-sample ablation. Этап не
+строит финальную production-модель направления. Платные и недоступные источники не заменяются
+синтетическими данными.

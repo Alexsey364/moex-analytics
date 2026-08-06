@@ -56,6 +56,46 @@ from .macro.loader import discover as discover_macro
 from .macro.loader import download as download_macro
 from .market_regime import calculate_all as calculate_regimes
 from .moex_client import MoexClient
+from .predictive_foundation.core import (
+    ablate_blocks as ablate_predictive_blocks,
+)
+from .predictive_foundation.core import (
+    audit_coverage as audit_predictive_data,
+)
+from .predictive_foundation.core import (
+    build_breadth as build_market_breadth,
+)
+from .predictive_foundation.core import (
+    build_catalog as discover_predictive_sources,
+)
+from .predictive_foundation.core import (
+    build_lead_lag_diagnostics,
+    download_market_universe,
+)
+from .predictive_foundation.core import (
+    build_relative_state as build_sber_relative_state,
+)
+from .predictive_foundation.core import (
+    cross_market_status as download_cross_market_data,
+)
+from .predictive_foundation.core import (
+    derivative_features_status as build_derivative_features,
+)
+from .predictive_foundation.core import (
+    discover_derivatives as download_derivatives,
+)
+from .predictive_foundation.core import (
+    index_history_status as download_index_history,
+)
+from .predictive_foundation.core import (
+    rates_market_status as download_rates_market,
+)
+from .predictive_foundation.core import (
+    status as predictive_data_status,
+)
+from .predictive_foundation.core import (
+    update as update_predictive_foundation,
+)
 from .returns import calculate_all
 from .sber_decision.engine import (
     backtest as backtest_sber_decision,
@@ -264,6 +304,23 @@ def build_parser() -> argparse.ArgumentParser:
         "calculate-sber-live-scorecard",
         "sber-live-status",
         "run-sber-daily",
+    ):
+        sub.add_parser(name)
+    for name in (
+        "discover-predictive-sources",
+        "download-market-universe",
+        "download-index-history",
+        "download-derivatives",
+        "download-rates-market",
+        "download-cross-market-data",
+        "build-market-breadth",
+        "build-sber-relative-state",
+        "build-derivative-features",
+        "build-structural-regimes",
+        "audit-predictive-data",
+        "ablate-predictive-blocks",
+        "predictive-data-status",
+        "update-predictive-foundation",
     ):
         sub.add_parser(name)
     return parser
@@ -677,6 +734,47 @@ def main() -> None:
                 "run-sber-daily": run_sber_daily,
             }
             print(actions[args.command](con))
+    elif args.command in {
+        "discover-predictive-sources",
+        "download-market-universe",
+        "download-index-history",
+        "download-derivatives",
+        "download-rates-market",
+        "download-cross-market-data",
+        "build-market-breadth",
+        "build-sber-relative-state",
+        "build-derivative-features",
+        "build-structural-regimes",
+        "audit-predictive-data",
+        "ablate-predictive-blocks",
+        "predictive-data-status",
+        "update-predictive-foundation",
+    }:
+        init_database()
+        from .predictive_foundation.core import detect_structural_regimes
+
+        with connection() as con:
+            actions = {
+                "discover-predictive-sources": discover_predictive_sources,
+                "download-market-universe": download_market_universe,
+                "download-index-history": download_index_history,
+                "download-derivatives": download_derivatives,
+                "download-rates-market": download_rates_market,
+                "download-cross-market-data": download_cross_market_data,
+                "build-market-breadth": build_market_breadth,
+                "build-sber-relative-state": build_sber_relative_state,
+                "build-derivative-features": build_derivative_features,
+                "build-structural-regimes": detect_structural_regimes,
+                "audit-predictive-data": audit_predictive_data,
+                "ablate-predictive-blocks": ablate_predictive_blocks,
+                "predictive-data-status": predictive_data_status,
+                "update-predictive-foundation": update_predictive_foundation,
+            }
+            result = actions[args.command](con)
+            if args.command == "update-predictive-foundation":
+                result["lead_lag"] = build_lead_lag_diagnostics(con)
+                result["ablation"] = ablate_predictive_blocks(con)
+            print(result)
     elif args.command == "dashboard":
         app = Path(__file__).parent / "dashboard" / "app.py"
         subprocess.run(
