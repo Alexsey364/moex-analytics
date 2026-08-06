@@ -360,6 +360,20 @@ def build_parser() -> argparse.ArgumentParser:
         "complete-sber-deep-backfill",
     ):
         sub.add_parser(name)
+    for name in (
+        "build-modular-sber-samples",
+        "validate-sber-futures-specs",
+        "calculate-sber-futures-basis",
+        "train-sber-experimental-direction",
+        "calibrate-sber-direction",
+        "evaluate-sber-modular-ablation",
+        "calculate-sber-experimental-forecast",
+        "evaluate-sber-timing-experiment",
+        "save-sber-shadow-forecasts",
+        "sber-experimental-model-status",
+        "run-sber-unblocked-experiment",
+    ):
+        sub.add_parser(name)
     return parser
 
 
@@ -890,6 +904,40 @@ def main() -> None:
                 "rerun-deep-ablation": deep.rerun_deep_ablation,
                 "sber-model-readiness": deep.model_readiness,
                 "complete-sber-deep-backfill": deep.complete_deep_backfill,
+            }
+            print(actions[args.command](con))
+    elif args.command in {
+        "build-modular-sber-samples",
+        "validate-sber-futures-specs",
+        "calculate-sber-futures-basis",
+        "train-sber-experimental-direction",
+        "calibrate-sber-direction",
+        "evaluate-sber-modular-ablation",
+        "calculate-sber-experimental-forecast",
+        "evaluate-sber-timing-experiment",
+        "save-sber-shadow-forecasts",
+        "sber-experimental-model-status",
+        "run-sber-unblocked-experiment",
+    }:
+        from .unblocked_experiment import core as experiment
+
+        init_database()
+        with connection() as con:
+            actions = {
+                "build-modular-sber-samples": lambda c: {
+                    "targets": experiment.build_targets(c),
+                    "samples": experiment.build_modular_samples(c),
+                },
+                "validate-sber-futures-specs": experiment.validate_futures_specs,
+                "calculate-sber-futures-basis": experiment.calculate_futures_basis,
+                "train-sber-experimental-direction": experiment.train_direction,
+                "calibrate-sber-direction": experiment.calibrate_direction,
+                "evaluate-sber-modular-ablation": experiment.evaluate_ablation,
+                "calculate-sber-experimental-forecast": experiment.calculate_forecast,
+                "evaluate-sber-timing-experiment": experiment.timing_experiment,
+                "save-sber-shadow-forecasts": experiment.save_shadow_forecasts,
+                "sber-experimental-model-status": experiment.experimental_status,
+                "run-sber-unblocked-experiment": experiment.run_unblocked_experiment,
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":

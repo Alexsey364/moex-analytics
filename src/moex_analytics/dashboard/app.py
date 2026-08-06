@@ -39,6 +39,7 @@ from moex_analytics.dashboard.pages import (
     sber_decision,
     sber_intelligence,
     sber_operational,
+    unblocked_experiment,
     update_data,
 )
 from moex_analytics.database import database_path, init_database
@@ -74,6 +75,16 @@ top[3].metric(
 )
 
 pages = {
+    "Эксперимент направления SBER": unblocked_experiment.render_direction,
+    "Доступные наборы данных": unblocked_experiment.render_datasets,
+    "Модульные common samples": unblocked_experiment.render_samples,
+    "Результаты по горизонтам — эксперимент": unblocked_experiment.render_horizons,
+    "Калибровка вероятностей": unblocked_experiment.render_calibration,
+    "Стабильность признаков": unblocked_experiment.render_stability,
+    "Добавочная ценность данных — эксперимент": unblocked_experiment.render_value,
+    "Текущий экспериментальный прогноз": unblocked_experiment.render_forecast,
+    "Покупать сейчас или ждать — эксперимент": unblocked_experiment.render_timing,
+    "Live shadow forecasts": unblocked_experiment.render_shadow,
     "Глубина ZCYC": deep_backfill.render_zcyc,
     "Архив фьючерсов SBER": deep_backfill.render_futures,
     "История rollover": deep_backfill.render_rolls,

@@ -165,3 +165,7 @@ catalog, загружает широкую TQBR-вселенную, рассчи
 ## Этап 11B: Deep Historical Backfill
 
 Модуль `moex_analytics.deep_backfill` загружает многолетнюю ZCYC, архив SBRF, строит четыре continuous-ряда, динамическую universe-диагностику, option-history pilot, common sample и coverage tiers. Фактические результаты и блокеры описаны в [docs/deep_historical_backfill.md](docs/deep_historical_backfill.md). Финальная production-модель не создаётся.
+
+## Этап 11C: Unblocked SBER Forecast Experiments
+
+Модуль `moex_analytics.unblocked_experiment` строит независимые комбинации technical, ZCYC, breadth, futures, intraday, options и fundamental-признаков, применяет train-only preprocessing и purged expanding-window validation, сохраняет экспериментальные прогнозы и immutable shadow-записи. Методология и ограничения описаны в [docs/unblocked_sber_experiment.md](docs/unblocked_sber_experiment.md). Production Decision Engine не изменяется.
