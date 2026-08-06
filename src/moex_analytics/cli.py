@@ -374,6 +374,18 @@ def build_parser() -> argparse.ArgumentParser:
         "run-sber-unblocked-experiment",
     ):
         sub.add_parser(name)
+    for name in (
+        "build-feature-registry",
+        "calculate-feature-importance",
+        "discover-market-regimes",
+        "calculate-alpha-decay",
+        "evaluate-feature-stability",
+        "build-factor-library",
+        "update-market-state",
+        "research-status",
+        "run-alpha-research",
+    ):
+        sub.add_parser(name)
     return parser
 
 
@@ -938,6 +950,27 @@ def main() -> None:
                 "save-sber-shadow-forecasts": experiment.save_shadow_forecasts,
                 "sber-experimental-model-status": experiment.experimental_status,
                 "run-sber-unblocked-experiment": experiment.run_unblocked_experiment,
+            }
+            print(actions[args.command](con))
+    elif args.command in {
+        "build-feature-registry", "calculate-feature-importance", "discover-market-regimes",
+        "calculate-alpha-decay", "evaluate-feature-stability", "build-factor-library",
+        "update-market-state", "research-status", "run-alpha-research",
+    }:
+        from .alpha_research import core as alpha
+
+        init_database()
+        with connection() as con:
+            actions = {
+                "build-feature-registry": alpha.build_feature_registry,
+                "calculate-feature-importance": alpha.calculate_feature_importance,
+                "discover-market-regimes": alpha.discover_market_regimes,
+                "calculate-alpha-decay": alpha.calculate_alpha_decay,
+                "evaluate-feature-stability": alpha.evaluate_feature_stability,
+                "build-factor-library": alpha.build_factor_library,
+                "update-market-state": alpha.update_market_state,
+                "research-status": alpha.research_status,
+                "run-alpha-research": alpha.run_alpha_research,
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":

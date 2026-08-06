@@ -169,3 +169,7 @@ catalog, загружает широкую TQBR-вселенную, рассчи
 ## Этап 11C: Unblocked SBER Forecast Experiments
 
 Модуль `moex_analytics.unblocked_experiment` строит независимые комбинации technical, ZCYC, breadth, futures, intraday, options и fundamental-признаков, применяет train-only preprocessing и purged expanding-window validation, сохраняет экспериментальные прогнозы и immutable shadow-записи. Методология и ограничения описаны в [docs/unblocked_sber_experiment.md](docs/unblocked_sber_experiment.md). Production Decision Engine не изменяется.
+
+## Alpha Research Engine
+
+Исследовательский контур `moex_analytics.alpha_research` автоматически каталогизирует и проверяет SBER-факторы, обнаруживает режимы без заранее заданных меток, оценивает decay, interactions и stability, формирует explainable Market State и research-only Factor Library. Методология: [docs/alpha_research_engine.md](docs/alpha_research_engine.md). Production Decision Engine и production-модель не изменяются.

@@ -25,6 +25,7 @@ if get_script_run_ctx() is None:
 
 from moex_analytics.dashboard.data_access import DatabaseUnavailable, database_summary
 from moex_analytics.dashboard.pages import (
+    alpha_research,
     analytics,
     critical_data,
     data_quality,
@@ -75,6 +76,15 @@ top[3].metric(
 )
 
 pages = {
+    "Feature Registry": alpha_research.render_registry,
+    "Feature Importance": alpha_research.render_importance,
+    "Feature Stability": alpha_research.render_stability,
+    "Market State — research": alpha_research.render_market_state,
+    "Regime Discovery": alpha_research.render_regimes,
+    "Alpha Decay": alpha_research.render_decay,
+    "Interaction Matrix": alpha_research.render_interactions,
+    "Production Candidates — research": alpha_research.render_candidates,
+    "Research Journal": alpha_research.render_journal,
     "Эксперимент направления SBER": unblocked_experiment.render_direction,
     "Доступные наборы данных": unblocked_experiment.render_datasets,
     "Модульные common samples": unblocked_experiment.render_samples,
