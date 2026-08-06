@@ -342,6 +342,24 @@ def build_parser() -> argparse.ArgumentParser:
         "complete-sber-critical-data",
     ):
         sub.add_parser(name)
+    for name in (
+        "backfill-zcyc-history",
+        "discover-expired-sber-futures",
+        "backfill-sber-futures",
+        "rebuild-sber-continuous-futures",
+        "backfill-historical-liquid-universe",
+        "calculate-survivorship-impact",
+        "build-historical-financial-sector",
+        "backfill-sber-intraday",
+        "validate-sber-ifrs-review",
+        "backfill-moex-options-history",
+        "build-sber-common-sample",
+        "calculate-coverage-tiers",
+        "rerun-deep-ablation",
+        "sber-model-readiness",
+        "complete-sber-deep-backfill",
+    ):
+        sub.add_parser(name)
     return parser
 
 
@@ -833,6 +851,45 @@ def main() -> None:
                 "rerun-critical-data-ablation": critical.rerun_critical_data_ablation,
                 "critical-predictive-data-status": critical.status,
                 "complete-sber-critical-data": critical.complete_critical_data,
+            }
+            print(actions[args.command](con))
+    elif args.command in {
+        "backfill-zcyc-history",
+        "discover-expired-sber-futures",
+        "backfill-sber-futures",
+        "rebuild-sber-continuous-futures",
+        "backfill-historical-liquid-universe",
+        "calculate-survivorship-impact",
+        "build-historical-financial-sector",
+        "backfill-sber-intraday",
+        "validate-sber-ifrs-review",
+        "backfill-moex-options-history",
+        "build-sber-common-sample",
+        "calculate-coverage-tiers",
+        "rerun-deep-ablation",
+        "sber-model-readiness",
+        "complete-sber-deep-backfill",
+    }:
+        from .deep_backfill import core as deep
+
+        init_database()
+        with connection() as con:
+            actions = {
+                "backfill-zcyc-history": deep.backfill_zcyc_history,
+                "discover-expired-sber-futures": deep.discover_expired_sber_futures,
+                "backfill-sber-futures": deep.backfill_sber_futures,
+                "rebuild-sber-continuous-futures": deep.rebuild_continuous_futures,
+                "backfill-historical-liquid-universe": deep.backfill_historical_liquid_universe,
+                "calculate-survivorship-impact": deep.calculate_survivorship_impact,
+                "build-historical-financial-sector": deep.build_historical_financial_sector,
+                "backfill-sber-intraday": deep.record_intraday_coverage,
+                "validate-sber-ifrs-review": deep.validate_sber_ifrs_review,
+                "backfill-moex-options-history": deep.backfill_options_history,
+                "build-sber-common-sample": deep.build_common_sample,
+                "calculate-coverage-tiers": deep.calculate_coverage_tiers,
+                "rerun-deep-ablation": deep.rerun_deep_ablation,
+                "sber-model-readiness": deep.model_readiness,
+                "complete-sber-deep-backfill": deep.complete_deep_backfill,
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":

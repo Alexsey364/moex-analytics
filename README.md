@@ -161,3 +161,7 @@ catalog, загружает широкую TQBR-вселенную, рассчи
 Добавлен контур `moex_analytics.critical_data` для исторической вселенной, ZCYC Банка России, SBER futures, IFRS/options audit и intraday-сессий. Методология, фактическая доступность и незакрытые ограничения описаны в [docs/critical_predictive_data_completion.md](docs/critical_predictive_data_completion.md). Ни один блок автоматически не получает production-статус, production-модель направления SBER не строится.
 
 Полный запуск: `python -m moex_analytics.cli complete-sber-critical-data`. Для больших архивов рекомендуется выполнять отдельные идемпотентные CLI-команды.
+
+## Этап 11B: Deep Historical Backfill
+
+Модуль `moex_analytics.deep_backfill` загружает многолетнюю ZCYC, архив SBRF, строит четыре continuous-ряда, динамическую universe-диагностику, option-history pilot, common sample и coverage tiers. Фактические результаты и блокеры описаны в [docs/deep_historical_backfill.md](docs/deep_historical_backfill.md). Финальная production-модель не создаётся.

@@ -29,6 +29,7 @@ from moex_analytics.dashboard.pages import (
     critical_data,
     data_quality,
     database_status,
+    deep_backfill,
     fundamentals,
     instrument,
     macro,
@@ -73,6 +74,18 @@ top[3].metric(
 )
 
 pages = {
+    "Глубина ZCYC": deep_backfill.render_zcyc,
+    "Архив фьючерсов SBER": deep_backfill.render_futures,
+    "История rollover": deep_backfill.render_rolls,
+    "Динамическая вселенная": deep_backfill.render_universe,
+    "Искажение survivorship": deep_backfill.render_survivorship,
+    "Исторический финансовый сектор — 11B": deep_backfill.render_finance,
+    "Внутридневное покрытие": deep_backfill.render_intraday,
+    "МСФО review": deep_backfill.render_ifrs,
+    "Исторические опционы": deep_backfill.render_options,
+    "Common sample": deep_backfill.render_sample,
+    "Coverage tiers": deep_backfill.render_tiers,
+    "Готовность к модели": deep_backfill.render_readiness,
     "Историческая вселенная": critical_data.render_universe,
     "Survivorship bias": critical_data.render_survivorship,
     "Исторический финансовый сектор": critical_data.render_finance,
