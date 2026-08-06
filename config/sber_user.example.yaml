@@ -1,0 +1,8 @@
+# Copy to sber_user.local.yaml; the local file is ignored by Git.
+planned_total_amount: null
+current_position_quantity: 0
+current_average_price: null
+investment_horizon: long_term
+maximum_portfolio_weight: null
+preferred_number_of_tranches: 10
+minimum_cash_reserve: null

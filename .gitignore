@@ -19,3 +19,5 @@ data/processed/*
 database/*.duckdb
 reports/*
 !reports/.gitkeep
+
+config/sber_user.local.yaml

@@ -85,6 +85,24 @@ from .sber_intelligence.repository import (
 from .sber_intelligence.repository import (
     status as sber_information_status,
 )
+from .sber_operational.core import (
+    audit_zones,
+    calculate_nowcast,
+    calculate_operating_state,
+    calculate_scorecard,
+    import_validated_fundamentals,
+    save_live_decision,
+    update_outcomes,
+)
+from .sber_operational.core import (
+    discover as discover_sber_operational,
+)
+from .sber_operational.core import (
+    run_daily as run_sber_daily,
+)
+from .sber_operational.core import (
+    status as sber_live_status,
+)
 from .scoring import calculate_all as calculate_scores
 
 
@@ -233,6 +251,19 @@ def build_parser() -> argparse.ArgumentParser:
         "recalculate-sber-after-events",
         "sber-information-status",
         "update-sber-intelligence",
+    ):
+        sub.add_parser(name)
+    for name in (
+        "discover-sber-operational-data",
+        "update-sber-operational-data",
+        "calculate-sber-nowcast",
+        "calculate-sber-operating-state",
+        "audit-sber-price-zones",
+        "save-sber-live-decision",
+        "update-sber-live-outcomes",
+        "calculate-sber-live-scorecard",
+        "sber-live-status",
+        "run-sber-daily",
     ):
         sub.add_parser(name)
     return parser
@@ -619,6 +650,33 @@ def main() -> None:
                 print({"impacts": calculate_sber_impacts(con), "decision_influence": "weight_zero"})
             else:
                 print(sber_information_status(con))
+    elif args.command in {
+        "discover-sber-operational-data",
+        "update-sber-operational-data",
+        "calculate-sber-nowcast",
+        "calculate-sber-operating-state",
+        "audit-sber-price-zones",
+        "save-sber-live-decision",
+        "update-sber-live-outcomes",
+        "calculate-sber-live-scorecard",
+        "sber-live-status",
+        "run-sber-daily",
+    }:
+        init_database()
+        with connection() as con:
+            actions = {
+                "discover-sber-operational-data": discover_sber_operational,
+                "update-sber-operational-data": import_validated_fundamentals,
+                "calculate-sber-nowcast": calculate_nowcast,
+                "calculate-sber-operating-state": calculate_operating_state,
+                "audit-sber-price-zones": audit_zones,
+                "save-sber-live-decision": save_live_decision,
+                "update-sber-live-outcomes": update_outcomes,
+                "calculate-sber-live-scorecard": calculate_scorecard,
+                "sber-live-status": sber_live_status,
+                "run-sber-daily": run_sber_daily,
+            }
+            print(actions[args.command](con))
     elif args.command == "dashboard":
         app = Path(__file__).parent / "dashboard" / "app.py"
         subprocess.run(
