@@ -36,6 +36,7 @@ from moex_analytics.dashboard.pages import (
     macro,
     methodology,
     overview,
+    portfolio_research,
     predictive_foundation,
     sber_decision,
     sber_intelligence,
@@ -76,6 +77,20 @@ top[3].metric(
 )
 
 pages = {
+    "Мой портфель": portfolio_research.render_portfolio,
+    "Карточки инструментов": portfolio_research.render_instruments,
+    "Сравнение акций": portfolio_research.render_comparison,
+    "Обычка против префа": portfolio_research.render_preferred,
+    "Alpha Research портфеля": portfolio_research.render_alpha,
+    "Факторная карта": portfolio_research.render_factors,
+    "Дивидендный календарь — портфель": portfolio_research.render_dividends,
+    "Риск портфеля": portfolio_research.render_risk,
+    "Корреляции портфеля": portfolio_research.render_correlations,
+    "Сценарии портфеля": portfolio_research.render_scenarios,
+    "Варианты распределения": portfolio_research.render_allocations,
+    "История портфеля": portfolio_research.render_history,
+    "Качество данных портфеля": portfolio_research.render_quality,
+    "Open-source аудит": portfolio_research.render_open_source,
     "Feature Registry": alpha_research.render_registry,
     "Feature Importance": alpha_research.render_importance,
     "Feature Stability": alpha_research.render_stability,

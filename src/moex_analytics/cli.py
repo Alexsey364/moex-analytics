@@ -386,6 +386,15 @@ def build_parser() -> argparse.ArgumentParser:
         "run-alpha-research",
     ):
         sub.add_parser(name)
+    for name in (
+        "discover-portfolio-instruments", "download-portfolio-history",
+        "build-portfolio-total-returns", "audit-preferred-share-rules",
+        "build-cross-instrument-features", "run-portfolio-alpha-research",
+        "build-portfolio-risk", "build-portfolio-dividend-calendar",
+        "calculate-portfolio-scenarios", "save-portfolio-live-shadow",
+        "audit-external-projects", "portfolio-status", "update-user-portfolio-research",
+    ):
+        sub.add_parser(name)
     return parser
 
 
@@ -971,6 +980,32 @@ def main() -> None:
                 "update-market-state": alpha.update_market_state,
                 "research-status": alpha.research_status,
                 "run-alpha-research": alpha.run_alpha_research,
+            }
+            print(actions[args.command](con))
+    elif args.command in {
+        "discover-portfolio-instruments", "download-portfolio-history", "build-portfolio-total-returns",
+        "audit-preferred-share-rules", "build-cross-instrument-features", "run-portfolio-alpha-research",
+        "build-portfolio-risk", "build-portfolio-dividend-calendar", "calculate-portfolio-scenarios",
+        "save-portfolio-live-shadow", "audit-external-projects", "portfolio-status",
+        "update-user-portfolio-research",
+    }:
+        from .portfolio_research import core as portfolio
+        init_database()
+        with connection() as con:
+            actions={
+                "discover-portfolio-instruments":portfolio.discover_portfolio_instruments,
+                "download-portfolio-history":portfolio.download_portfolio_history,
+                "build-portfolio-total-returns":portfolio.build_portfolio_total_returns,
+                "audit-preferred-share-rules":portfolio.audit_preferred_share_rules,
+                "build-cross-instrument-features":portfolio.build_cross_instrument_features,
+                "run-portfolio-alpha-research":portfolio.run_portfolio_alpha_research,
+                "build-portfolio-risk":portfolio.build_portfolio_risk,
+                "build-portfolio-dividend-calendar":portfolio.build_portfolio_dividend_calendar,
+                "calculate-portfolio-scenarios":portfolio.calculate_portfolio_scenarios,
+                "save-portfolio-live-shadow":portfolio.save_portfolio_live_shadow,
+                "audit-external-projects":portfolio.audit_external_projects,
+                "portfolio-status":portfolio.portfolio_status,
+                "update-user-portfolio-research":portfolio.update_user_portfolio_research,
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":

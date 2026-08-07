@@ -21,3 +21,4 @@ reports/*
 !reports/.gitkeep
 
 config/sber_user.local.yaml
+config/portfolio_positions.local.yaml

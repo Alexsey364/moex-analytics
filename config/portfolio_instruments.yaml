@@ -1,0 +1,35 @@
+version: portfolio-research-v1
+benchmark: IMOEX
+instruments:
+  - {secid: X5, sector: consumer_retail, fundamental_family: CONSUMER_RETAIL, share_class: ordinary}
+  - {secid: SBERP, sector: bank, fundamental_family: BANK, share_class: preferred, ordinary_pair: SBER}
+  - {secid: LKOH, sector: oil_gas, fundamental_family: OIL_GAS, share_class: ordinary}
+  - {secid: LSNGP, sector: utility_grid, fundamental_family: UTILITY_GRID, share_class: preferred, ordinary_pair: LSNG}
+  - {secid: MTSS, sector: telecom, fundamental_family: TELECOM, share_class: ordinary}
+  - {secid: TRNFP, sector: oil_gas, fundamental_family: OIL_GAS, share_class: preferred}
+  - {secid: TATNP, sector: oil_gas, fundamental_family: OIL_GAS, share_class: preferred, ordinary_pair: TATN}
+  - {secid: PHOR, sector: fertilizers_chemicals, fundamental_family: FERTILIZERS_CHEMICALS, share_class: ordinary}
+  - {secid: MOEX, sector: exchange_infrastructure, fundamental_family: EXCHANGE_INFRASTRUCTURE, share_class: ordinary}
+controls:
+  - {secid: SBER, sector: bank, fundamental_family: BANK, share_class: ordinary}
+supports:
+  - {secid: TATN, sector: oil_gas, fundamental_family: OIL_GAS, share_class: ordinary}
+  - {secid: LSNG, sector: utility_grid, fundamental_family: UTILITY_GRID, share_class: ordinary}
+  - {secid: IMOEX, sector: broad_market, fundamental_family: MARKET_INDEX, share_class: index}
+rules:
+  research_only: true
+  no_trade_recommendation: true
+  live_shadow_enabled: true
+  allowed_horizons: [1, 5, 20, 60, 120, 250]
+  canonical_board_priority: [TQBR, TQTF, EQBR, TQTD, SMAL]
+  no_short_selling: true
+  cash_reserve: 0.0
+  transaction_cost_bps: 10
+fundamental_source_matrix:
+  BANK: [issuer_disclosures, cbr, moex_iss]
+  OIL_GAS: [issuer_disclosures, government_tax_rules, cbr, moex_iss]
+  UTILITY_GRID: [issuer_disclosures, tariff_decisions, moex_iss]
+  TELECOM: [issuer_disclosures, moex_iss]
+  CONSUMER_RETAIL: [issuer_disclosures, operational_releases, moex_iss]
+  FERTILIZERS_CHEMICALS: [issuer_disclosures, commodity_public_sources, cbr, moex_iss]
+  EXCHANGE_INFRASTRUCTURE: [issuer_disclosures, moex_market_statistics, cbr]
