@@ -23,3 +23,13 @@ Projects not shown as reproduced were not claimed to work. No notebook/backtest 
 | russian-markets-lab | provenance/status UI | no | no | not comparable | research_further | none |
 | Island Model | ensemble forecast | no | no | no accepted evidence | reject | none |
 | backtrader_moexalgo | event backtest | no tested example | no | not established | research_further | MIT |
+
+## Stage 14 reproduction update — 2026-08-07
+
+| Project | Commit | Environment/result | Decision |
+|---|---|---|---|
+| PyPortfolioOpt 1.6.0 | `a6638d2e06dae6f444fd022cfd4b3c528902a85b` | Isolated Python 3.13 venv: 279 passed, 33 skipped, 5 HRP failures caused by removed SciPy 1.18 private API | optional/research; no runtime dependency |
+| vectorbt 1.1.0 | `34b6d5935e3ea3eccd549e2592bc0f455b8045f5` | Install failed with Windows long-path error in a JupyterLab asset; pytest was not installed | reject for now; not claimed runnable |
+| backtrader 1.9.78.123 | `b853d7c90b6721476eb5a5ea3135224e33db1f14` | Isolated editable install and import passed; SyntaxWarnings observed | reference only; clean-room native simulator because GPL-3.0+ |
+
+okama was run on an exported public equal-weight demo return series, never the project DuckDB or user positions. CAGR/risk were reproduced; `Frame.get_wealth_indexes` failed exactly with pandas 3 because integer subtraction from `Timestamp` is unsupported. Terminal wealth was therefore reconciled by the documented product formula.

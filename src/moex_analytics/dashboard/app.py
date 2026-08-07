@@ -77,6 +77,16 @@ top[3].metric(
 )
 
 pages = {
+    "Мой реальный портфель": portfolio_research.render_real_portfolio,
+    "Проверка alpha-кандидатов": portfolio_research.render_validation,
+    "Факторы по режимам": portfolio_research.render_regime_factors,
+    "Сравнение с okama": portfolio_research.render_okama,
+    "Методология расчётов — портфель": portfolio_research.render_methodology_v14,
+    "Вклад в риск": portfolio_research.render_risk_contribution,
+    "Дивидендный поток": portfolio_research.render_dividend_flow,
+    "Фундаментальная готовность": portfolio_research.render_fundamental_readiness,
+    "Backtest портфеля": portfolio_research.render_backtest_portfolio,
+    "Внешние методы": portfolio_research.render_external_methods,
     "Мой портфель": portfolio_research.render_portfolio,
     "Карточки инструментов": portfolio_research.render_instruments,
     "Сравнение акций": portfolio_research.render_comparison,

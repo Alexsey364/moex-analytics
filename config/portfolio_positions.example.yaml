@@ -1,0 +1,12 @@
+mode: real
+cash: 0
+positions:
+  - secid: LKOH
+    quantity: 0
+    average_price: null
+    target_weight: null
+    maximum_weight: 1.0
+    allow_buy: false
+    allow_sell: false
+    frozen: true
+    notes: "Replace locally; never commit personal values"

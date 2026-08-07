@@ -395,6 +395,14 @@ def build_parser() -> argparse.ArgumentParser:
         "audit-external-projects", "portfolio-status", "update-user-portfolio-research",
     ):
         sub.add_parser(name)
+    for name in (
+        "validate-portfolio-alpha", "validate-cross-instrument-factors", "compare-okama-metrics",
+        "audit-pyportfolioopt", "audit-vectorbt", "audit-event-driven-backtest", "load-local-portfolio",
+        "calculate-real-portfolio", "calculate-portfolio-alternatives", "discover-issuer-fundamentals",
+        "build-portfolio-dividend-outlook", "calculate-portfolio-scenarios-v2",
+        "save-real-portfolio-snapshot", "portfolio-validation-status", "run-portfolio-validation",
+    ):
+        sub.add_parser(name)
     return parser
 
 
@@ -1006,6 +1014,35 @@ def main() -> None:
                 "audit-external-projects":portfolio.audit_external_projects,
                 "portfolio-status":portfolio.portfolio_status,
                 "update-user-portfolio-research":portfolio.update_user_portfolio_research,
+            }
+            print(actions[args.command](con))
+    elif args.command in {
+        "validate-portfolio-alpha", "validate-cross-instrument-factors", "compare-okama-metrics",
+        "audit-pyportfolioopt", "audit-vectorbt", "audit-event-driven-backtest", "load-local-portfolio",
+        "calculate-real-portfolio", "calculate-portfolio-alternatives", "discover-issuer-fundamentals",
+        "build-portfolio-dividend-outlook", "calculate-portfolio-scenarios-v2",
+        "save-real-portfolio-snapshot",
+        "portfolio-validation-status", "run-portfolio-validation",
+    }:
+        from .portfolio_research import external_methods, issuers, portfolio_v14, validation
+        init_database()
+        with connection() as con:
+            def audit(c):
+                return external_methods.audit_external_methods(c)
+            actions = {
+                "validate-portfolio-alpha": validation.validate_portfolio_alpha,
+                "validate-cross-instrument-factors": validation.validate_cross_instrument_factors,
+                "compare-okama-metrics": external_methods.compare_okama_metrics,
+                "audit-pyportfolioopt": audit, "audit-vectorbt": audit, "audit-event-driven-backtest": audit,
+                "load-local-portfolio": lambda c: portfolio_v14.parse_local_portfolio(),
+                "calculate-real-portfolio": portfolio_v14.calculate_real_portfolio,
+                "calculate-portfolio-alternatives": portfolio_v14.calculate_portfolio_alternatives,
+                "discover-issuer-fundamentals": issuers.discover_issuer_fundamentals,
+                "build-portfolio-dividend-outlook": portfolio_v14.build_portfolio_dividend_outlook,
+                "calculate-portfolio-scenarios-v2": portfolio_v14.calculate_portfolio_scenarios_v2,
+                "save-real-portfolio-snapshot": portfolio_v14.save_real_portfolio_snapshot,
+                "portfolio-validation-status": portfolio_v14.portfolio_validation_status,
+                "run-portfolio-validation": portfolio_v14.run_portfolio_validation,
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":
