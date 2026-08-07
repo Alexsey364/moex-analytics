@@ -25,6 +25,7 @@ if get_script_run_ctx() is None:
 
 from moex_analytics.dashboard.data_access import DatabaseUnavailable, database_summary
 from moex_analytics.dashboard.launcher import mark_current_process
+from moex_analytics.dashboard.navigation import navigation_pages
 from moex_analytics.dashboard.pages import (
     alpha_research,
     analytics,
@@ -33,6 +34,7 @@ from moex_analytics.dashboard.pages import (
     database_status,
     deep_backfill,
     fundamentals,
+    human_portfolio,
     instrument,
     macro,
     methodology,
@@ -78,7 +80,7 @@ top[3].metric(
     f"{summary.get('date_from', '—')} — {summary.get('date_to', '—')}",
 )
 
-pages = {
+advanced_pages = {
     "Company Valuation": portfolio_research.render_company_valuation,
     "Regime Risk": portfolio_research.render_regime_risk_v15,
     "Portfolio Action Map": portfolio_research.render_action_map,
@@ -213,5 +215,17 @@ pages = {
     "Обновление данных": update_data.render,
     "Методология": methodology.render,
 }
-selected = st.sidebar.radio("Навигация", pages)
+basic_pages = {
+    "Сегодня": human_portfolio.render_today,
+    "Мой портфель": human_portfolio.render_portfolio,
+    "Акции": human_portfolio.render_stocks,
+    "Спросить про портфель": human_portfolio.render_ask,
+    "Дивиденды": human_portfolio.render_dividends,
+    "Риски": human_portfolio.render_risks,
+    "Сценарии": human_portfolio.render_scenarios,
+    "Обновить данные": human_portfolio.render_update,
+}
+advanced = st.sidebar.toggle("Расширенный режим", value=False)
+pages = navigation_pages(basic_pages, advanced_pages, advanced)
+selected = st.sidebar.radio("Навигация", pages, index=0)
 pages[selected]()

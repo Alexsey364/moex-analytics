@@ -57,6 +57,7 @@ def test_dashboard_launcher_classifies_port_owner(monkeypatch):
     from moex_analytics.dashboard import launcher
 
     monkeypatch.setattr(launcher, "_marker_pid", lambda: 10)
+    monkeypatch.setattr(launcher, "_pending_is_fresh", lambda: False)
     monkeypatch.setattr(launcher, "_healthy", lambda: True)
     assert launcher.classify_owner(None) == "free"
     assert launcher.classify_owner((10, "")) == "dashboard"

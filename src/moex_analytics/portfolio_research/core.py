@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from datetime import date
+from datetime import date, timedelta
 
 import numpy as np
 import yaml
@@ -312,9 +312,16 @@ def download_portfolio_history(con, client=None):  # pragma: no cover
             "market": market,
             "board": board,
         }
+        latest_local = con.execute(
+            "SELECT max(trade_date) FROM daily_prices WHERE secid=? AND board=?",
+            [source, board],
+        ).fetchone()[0]
+        incremental_from = max(from_date, latest_local + timedelta(days=1)) if latest_local else from_date
+        if incremental_from > min(to_date, date.today()):
+            continue
         rows = []
         for payload, _, url in client.history_pages(
-            instrument, str(from_date), str(min(to_date, date.today()))
+            instrument, str(incremental_from), str(min(to_date, date.today()))
         ):
             rows.extend(client.normalize_history(payload, source, board, url))
         inserted += insert_daily_prices(con, rows)

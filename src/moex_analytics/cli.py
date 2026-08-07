@@ -412,6 +412,7 @@ def build_parser() -> argparse.ArgumentParser:
         "save-portfolio-intelligence-snapshot",
         "portfolio-intelligence-status",
         "run-portfolio-intelligence",
+        "run-daily-intelligence",
     ):
         sub.add_parser(name)
     for name in (
@@ -1113,8 +1114,9 @@ def main() -> None:
         "save-portfolio-intelligence-snapshot",
         "portfolio-intelligence-status",
         "run-portfolio-intelligence",
+        "run-daily-intelligence",
     }:
-        from .portfolio_research import intelligence
+        from .portfolio_research import human_intelligence, intelligence
 
         init_database()
         with connection() as con:
@@ -1128,6 +1130,7 @@ def main() -> None:
                 "save-portfolio-intelligence-snapshot": intelligence.save_intelligence_snapshot,
                 "portfolio-intelligence-status": intelligence.intelligence_status,
                 "run-portfolio-intelligence": intelligence.run_intelligence,
+                "run-daily-intelligence": human_intelligence.run_daily_intelligence,
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":
