@@ -24,6 +24,7 @@ if get_script_run_ctx() is None:
     raise SystemExit
 
 from moex_analytics.dashboard.data_access import DatabaseUnavailable, database_summary
+from moex_analytics.dashboard.launcher import mark_current_process
 from moex_analytics.dashboard.pages import (
     alpha_research,
     analytics,
@@ -47,6 +48,7 @@ from moex_analytics.dashboard.pages import (
 from moex_analytics.database import database_path, init_database
 
 st.set_page_config(page_title="Аналитика рынка MOEX", layout="wide")
+mark_current_process()
 st.title("Аналитика рынка MOEX")
 
 if not database_path().exists():
@@ -77,6 +79,11 @@ top[3].metric(
 )
 
 pages = {
+    "Company Valuation": portfolio_research.render_company_valuation,
+    "Regime Risk": portfolio_research.render_regime_risk_v15,
+    "Portfolio Action Map": portfolio_research.render_action_map,
+    "Portfolio Alternatives — real": portfolio_research.render_alternatives_v15,
+    "Data Quality — intelligence": portfolio_research.render_data_quality_v15,
     "Мой реальный портфель": portfolio_research.render_real_portfolio,
     "Проверка alpha-кандидатов": portfolio_research.render_validation,
     "Факторы по режимам": portfolio_research.render_regime_factors,

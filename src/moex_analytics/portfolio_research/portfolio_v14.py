@@ -54,7 +54,12 @@ def parse_local_portfolio(path=None):
                 raise ValueError(f"position {i} missing fields: {','.join(missing)}")
     return {
         "mode": mode,
-        "cash": float(cfg.get("cash", 0)),
+        "cash": None if cfg.get("cash") is None else float(cfg["cash"]),
+        "account_reference_value": cfg.get("account_reference_value"),
+        "broker_reference_profit": cfg.get("broker_reference_profit"),
+        "reconstructed_profit": cfg.get("reconstructed_profit"),
+        "reconciliation_difference": cfg.get("reconciliation_difference"),
+        "reconciliation_status": cfg.get("reconciliation_status"),
         "positions": positions,
         "message": "private local input" if mode == "real" else "explicit demo mode; not user result",
     }
@@ -86,7 +91,9 @@ def calculate_real_portfolio(con):  # pragma: no cover - DuckDB integration
         ).fetchall()
     )
     values = np.array([float(p["quantity"]) * latest.get(p["secid"], 0) for p in positions])
-    total = float(values.sum() + cfg["cash"])
+    # Only imported equities enter weights/risk. Unknown cash and the account
+    # reference value are never silently interpreted as investable cash.
+    total = float(values.sum())
     weights = values / max(total, 1e-12)
     digest = hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()
     sid = digest[:20]

@@ -387,20 +387,49 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         sub.add_parser(name)
     for name in (
-        "discover-portfolio-instruments", "download-portfolio-history",
-        "build-portfolio-total-returns", "audit-preferred-share-rules",
-        "build-cross-instrument-features", "run-portfolio-alpha-research",
-        "build-portfolio-risk", "build-portfolio-dividend-calendar",
-        "calculate-portfolio-scenarios", "save-portfolio-live-shadow",
-        "audit-external-projects", "portfolio-status", "update-user-portfolio-research",
+        "discover-portfolio-instruments",
+        "download-portfolio-history",
+        "build-portfolio-total-returns",
+        "audit-preferred-share-rules",
+        "build-cross-instrument-features",
+        "run-portfolio-alpha-research",
+        "build-portfolio-risk",
+        "build-portfolio-dividend-calendar",
+        "calculate-portfolio-scenarios",
+        "save-portfolio-live-shadow",
+        "audit-external-projects",
+        "portfolio-status",
+        "update-user-portfolio-research",
     ):
         sub.add_parser(name)
     for name in (
-        "validate-portfolio-alpha", "validate-cross-instrument-factors", "compare-okama-metrics",
-        "audit-pyportfolioopt", "audit-vectorbt", "audit-event-driven-backtest", "load-local-portfolio",
-        "calculate-real-portfolio", "calculate-portfolio-alternatives", "discover-issuer-fundamentals",
-        "build-portfolio-dividend-outlook", "calculate-portfolio-scenarios-v2",
-        "save-real-portfolio-snapshot", "portfolio-validation-status", "run-portfolio-validation",
+        "save-portfolio-reconciliation",
+        "backfill-official-fundamentals",
+        "build-issuer-valuations",
+        "build-regime-risk",
+        "build-portfolio-action-map",
+        "build-portfolio-alternatives-v15",
+        "save-portfolio-intelligence-snapshot",
+        "portfolio-intelligence-status",
+        "run-portfolio-intelligence",
+    ):
+        sub.add_parser(name)
+    for name in (
+        "validate-portfolio-alpha",
+        "validate-cross-instrument-factors",
+        "compare-okama-metrics",
+        "audit-pyportfolioopt",
+        "audit-vectorbt",
+        "audit-event-driven-backtest",
+        "load-local-portfolio",
+        "calculate-real-portfolio",
+        "calculate-portfolio-alternatives",
+        "discover-issuer-fundamentals",
+        "build-portfolio-dividend-outlook",
+        "calculate-portfolio-scenarios-v2",
+        "save-real-portfolio-snapshot",
+        "portfolio-validation-status",
+        "run-portfolio-validation",
     ):
         sub.add_parser(name)
     return parser
@@ -970,9 +999,15 @@ def main() -> None:
             }
             print(actions[args.command](con))
     elif args.command in {
-        "build-feature-registry", "calculate-feature-importance", "discover-market-regimes",
-        "calculate-alpha-decay", "evaluate-feature-stability", "build-factor-library",
-        "update-market-state", "research-status", "run-alpha-research",
+        "build-feature-registry",
+        "calculate-feature-importance",
+        "discover-market-regimes",
+        "calculate-alpha-decay",
+        "evaluate-feature-stability",
+        "build-factor-library",
+        "update-market-state",
+        "research-status",
+        "run-alpha-research",
     }:
         from .alpha_research import core as alpha
 
@@ -991,49 +1026,72 @@ def main() -> None:
             }
             print(actions[args.command](con))
     elif args.command in {
-        "discover-portfolio-instruments", "download-portfolio-history", "build-portfolio-total-returns",
-        "audit-preferred-share-rules", "build-cross-instrument-features", "run-portfolio-alpha-research",
-        "build-portfolio-risk", "build-portfolio-dividend-calendar", "calculate-portfolio-scenarios",
-        "save-portfolio-live-shadow", "audit-external-projects", "portfolio-status",
+        "discover-portfolio-instruments",
+        "download-portfolio-history",
+        "build-portfolio-total-returns",
+        "audit-preferred-share-rules",
+        "build-cross-instrument-features",
+        "run-portfolio-alpha-research",
+        "build-portfolio-risk",
+        "build-portfolio-dividend-calendar",
+        "calculate-portfolio-scenarios",
+        "save-portfolio-live-shadow",
+        "audit-external-projects",
+        "portfolio-status",
         "update-user-portfolio-research",
     }:
         from .portfolio_research import core as portfolio
+
         init_database()
         with connection() as con:
-            actions={
-                "discover-portfolio-instruments":portfolio.discover_portfolio_instruments,
-                "download-portfolio-history":portfolio.download_portfolio_history,
-                "build-portfolio-total-returns":portfolio.build_portfolio_total_returns,
-                "audit-preferred-share-rules":portfolio.audit_preferred_share_rules,
-                "build-cross-instrument-features":portfolio.build_cross_instrument_features,
-                "run-portfolio-alpha-research":portfolio.run_portfolio_alpha_research,
-                "build-portfolio-risk":portfolio.build_portfolio_risk,
-                "build-portfolio-dividend-calendar":portfolio.build_portfolio_dividend_calendar,
-                "calculate-portfolio-scenarios":portfolio.calculate_portfolio_scenarios,
-                "save-portfolio-live-shadow":portfolio.save_portfolio_live_shadow,
-                "audit-external-projects":portfolio.audit_external_projects,
-                "portfolio-status":portfolio.portfolio_status,
-                "update-user-portfolio-research":portfolio.update_user_portfolio_research,
+            actions = {
+                "discover-portfolio-instruments": portfolio.discover_portfolio_instruments,
+                "download-portfolio-history": portfolio.download_portfolio_history,
+                "build-portfolio-total-returns": portfolio.build_portfolio_total_returns,
+                "audit-preferred-share-rules": portfolio.audit_preferred_share_rules,
+                "build-cross-instrument-features": portfolio.build_cross_instrument_features,
+                "run-portfolio-alpha-research": portfolio.run_portfolio_alpha_research,
+                "build-portfolio-risk": portfolio.build_portfolio_risk,
+                "build-portfolio-dividend-calendar": portfolio.build_portfolio_dividend_calendar,
+                "calculate-portfolio-scenarios": portfolio.calculate_portfolio_scenarios,
+                "save-portfolio-live-shadow": portfolio.save_portfolio_live_shadow,
+                "audit-external-projects": portfolio.audit_external_projects,
+                "portfolio-status": portfolio.portfolio_status,
+                "update-user-portfolio-research": portfolio.update_user_portfolio_research,
             }
             print(actions[args.command](con))
     elif args.command in {
-        "validate-portfolio-alpha", "validate-cross-instrument-factors", "compare-okama-metrics",
-        "audit-pyportfolioopt", "audit-vectorbt", "audit-event-driven-backtest", "load-local-portfolio",
-        "calculate-real-portfolio", "calculate-portfolio-alternatives", "discover-issuer-fundamentals",
-        "build-portfolio-dividend-outlook", "calculate-portfolio-scenarios-v2",
+        "validate-portfolio-alpha",
+        "validate-cross-instrument-factors",
+        "compare-okama-metrics",
+        "audit-pyportfolioopt",
+        "audit-vectorbt",
+        "audit-event-driven-backtest",
+        "load-local-portfolio",
+        "calculate-real-portfolio",
+        "calculate-portfolio-alternatives",
+        "discover-issuer-fundamentals",
+        "build-portfolio-dividend-outlook",
+        "calculate-portfolio-scenarios-v2",
         "save-real-portfolio-snapshot",
-        "portfolio-validation-status", "run-portfolio-validation",
+        "portfolio-validation-status",
+        "run-portfolio-validation",
     }:
         from .portfolio_research import external_methods, issuers, portfolio_v14, validation
+
         init_database()
         with connection() as con:
+
             def audit(c):
                 return external_methods.audit_external_methods(c)
+
             actions = {
                 "validate-portfolio-alpha": validation.validate_portfolio_alpha,
                 "validate-cross-instrument-factors": validation.validate_cross_instrument_factors,
                 "compare-okama-metrics": external_methods.compare_okama_metrics,
-                "audit-pyportfolioopt": audit, "audit-vectorbt": audit, "audit-event-driven-backtest": audit,
+                "audit-pyportfolioopt": audit,
+                "audit-vectorbt": audit,
+                "audit-event-driven-backtest": audit,
                 "load-local-portfolio": lambda c: portfolio_v14.parse_local_portfolio(),
                 "calculate-real-portfolio": portfolio_v14.calculate_real_portfolio,
                 "calculate-portfolio-alternatives": portfolio_v14.calculate_portfolio_alternatives,
@@ -1043,6 +1101,33 @@ def main() -> None:
                 "save-real-portfolio-snapshot": portfolio_v14.save_real_portfolio_snapshot,
                 "portfolio-validation-status": portfolio_v14.portfolio_validation_status,
                 "run-portfolio-validation": portfolio_v14.run_portfolio_validation,
+            }
+            print(actions[args.command](con))
+    elif args.command in {
+        "save-portfolio-reconciliation",
+        "backfill-official-fundamentals",
+        "build-issuer-valuations",
+        "build-regime-risk",
+        "build-portfolio-action-map",
+        "build-portfolio-alternatives-v15",
+        "save-portfolio-intelligence-snapshot",
+        "portfolio-intelligence-status",
+        "run-portfolio-intelligence",
+    }:
+        from .portfolio_research import intelligence
+
+        init_database()
+        with connection() as con:
+            actions = {
+                "save-portfolio-reconciliation": intelligence.save_reconciliation,
+                "backfill-official-fundamentals": intelligence.backfill_official_fundamentals,
+                "build-issuer-valuations": intelligence.build_valuation_states,
+                "build-regime-risk": intelligence.build_regime_risk,
+                "build-portfolio-action-map": intelligence.build_action_map,
+                "build-portfolio-alternatives-v15": intelligence.build_alternatives,
+                "save-portfolio-intelligence-snapshot": intelligence.save_intelligence_snapshot,
+                "portfolio-intelligence-status": intelligence.intelligence_status,
+                "run-portfolio-intelligence": intelligence.run_intelligence,
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":

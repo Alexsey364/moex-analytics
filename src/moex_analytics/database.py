@@ -342,10 +342,10 @@ def database_path() -> Path:
 
 
 @contextmanager
-def connection(path: Path | None = None) -> Iterator[duckdb.DuckDBPyConnection]:
+def connection(path: Path | None = None, *, read_only: bool = False) -> Iterator[duckdb.DuckDBPyConnection]:
     target = path or database_path()
     target.parent.mkdir(parents=True, exist_ok=True)
-    con = duckdb.connect(str(target))
+    con = duckdb.connect(str(target), read_only=read_only)
     try:
         yield con
     finally:

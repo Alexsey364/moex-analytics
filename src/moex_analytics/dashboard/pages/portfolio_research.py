@@ -1,5 +1,6 @@
 """Dashboard pages for research-only user portfolio analytics."""
 
+import pandas as pd
 import streamlit as st
 
 from moex_analytics.database import connection
@@ -8,6 +9,21 @@ from moex_analytics.database import connection
 def _q(sql):
     with connection(read_only=True) as con:
         return con.execute(sql).df()
+
+
+def _safe_table(sql, empty_message="insufficient_data"):
+    """Render partial stage data without turning a missing table into a page crash."""
+    try:
+        frame = _q(sql)
+    except Exception as exc:  # pragma: no cover - Streamlit/runtime integration
+        st.info(empty_message)
+        st.caption(f"Данные ещё не подготовлены: {type(exc).__name__}")
+        return pd.DataFrame()
+    if frame.empty:
+        st.info(empty_message)
+        return frame
+    st.dataframe(frame, use_container_width=True)
+    return frame
 
 
 def render_portfolio():
@@ -157,14 +173,18 @@ def render_risk_contribution():
 def render_dividend_flow():
     st.header("Дивидендный поток")
     st.warning("Estimated/scenario DPS не является объявленным дивидендом.")
-    st.dataframe(
-        _q("SELECT * FROM portfolio_dividend_outlook ORDER BY month,secid,scenario"), use_container_width=True
+    _safe_table(
+        "SELECT * FROM portfolio_dividend_outlook ORDER BY month,secid,scenario",
+        "insufficient_data: дивидендный прогноз ещё не рассчитан",
     )
 
 
 def render_fundamental_readiness():
     st.header("Фундаментальная готовность")
-    st.dataframe(_q("SELECT * FROM issuer_source_maps ORDER BY secid,metric"), use_container_width=True)
+    _safe_table(
+        "SELECT * FROM issuer_source_maps ORDER BY secid,metric",
+        "insufficient_data: подтверждённые фундаментальные данные пока отсутствуют",
+    )
 
 
 def render_backtest_portfolio():
@@ -176,3 +196,47 @@ def render_backtest_portfolio():
 def render_external_methods():
     st.header("Внешние методы")
     st.dataframe(_q("SELECT * FROM external_method_audits"), use_container_width=True)
+
+
+def render_company_valuation():
+    st.header("Company Valuation")
+    frame = _safe_table(
+        "SELECT * FROM issuer_valuation_states ORDER BY secid",
+        "Недостаточно подтверждённых фундаментальных данных для расчёта оценки",
+    )
+    if not frame.empty and not frame[["main_low", "main_high"]].notna().any().any():
+        st.info("Недостаточно подтверждённых фундаментальных данных для расчёта оценки")
+
+
+def render_regime_risk_v15():
+    st.header("Regime Risk")
+    _safe_table(
+        "SELECT * FROM instrument_regime_risk ORDER BY secid",
+        "insufficient_data: режимный риск ещё не рассчитан",
+    )
+
+
+def render_action_map():
+    st.header("Portfolio Action Map")
+    st.warning("Транш — доля следующего equity contribution; BUY/SELL не используется.")
+    _safe_table(
+        "SELECT * FROM portfolio_action_map ORDER BY equity_weight DESC",
+        "insufficient_data: карта действий ещё не рассчитана",
+    )
+
+
+def render_alternatives_v15():
+    st.header("Portfolio Alternatives")
+    st.warning("CAGR разных period_type напрямую не сравнивать.")
+    _safe_table(
+        "SELECT * FROM portfolio_alternatives_v15 ORDER BY period_type,volatility",
+        "insufficient_data: варианты портфеля ещё не рассчитаны",
+    )
+
+
+def render_data_quality_v15():
+    st.header("Data Quality")
+    _safe_table(
+        "SELECT secid,source_url,reporting_standard,status,notes FROM issuer_official_sources ORDER BY secid",
+        "insufficient_data: аудит официальных источников ещё не создан",
+    )

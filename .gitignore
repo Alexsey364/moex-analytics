@@ -1,4 +1,5 @@
 .venv/
+.venv312/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -16,6 +17,8 @@ data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+data/review/*
+!data/review/.gitkeep
 database/*.duckdb
 reports/*
 !reports/.gitkeep
