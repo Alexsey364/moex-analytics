@@ -91,4 +91,11 @@ CREATE TABLE IF NOT EXISTS stage21_coverage_snapshots(
  boards INTEGER, rows BIGINT, date_from DATE, date_to DATE, completed_jobs INTEGER,
  pending_jobs INTEGER, failed_jobs INTEGER, database_bytes BIGINT, details_json JSON
 );
+CREATE TABLE IF NOT EXISTS stage21_factor_evaluation(
+ feature VARCHAR, horizon INTEGER, sample_start DATE, sample_end DATE,
+ observations INTEGER, folds INTEGER, baseline_accuracy DOUBLE,
+ model_accuracy DOUBLE, delta_accuracy DOUBLE, ci_low DOUBLE, ci_high DOUBLE,
+ mean_ic DOUBLE, stable_fold_wins INTEGER, status VARCHAR, calculated_at TIMESTAMP,
+ PRIMARY KEY(feature,horizon)
+);
 """

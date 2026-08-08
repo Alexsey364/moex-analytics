@@ -458,6 +458,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("build-trading-statistics")
     sub.add_parser("market-history-status")
     sub.add_parser("backfill-official-market-series")
+    sub.add_parser("evaluate-market-factors")
     for name in (
         "validate-portfolio-alpha",
         "validate-cross-instrument-factors",
@@ -1211,6 +1212,7 @@ def main() -> None:
         "build-trading-statistics",
         "market-history-status",
         "backfill-official-market-series",
+        "evaluate-market-factors",
     }:
         from . import market_history
 
@@ -1224,6 +1226,8 @@ def main() -> None:
                 result = market_history.build_trading_statistics(con)
             elif args.command == "backfill-official-market-series":
                 result = market_history.backfill_official_market_series(con)
+            elif args.command == "evaluate-market-factors":
+                result = market_history.evaluate_market_factors(con)
             else:
                 result = market_history.coverage(con, save=True)
             print(result)

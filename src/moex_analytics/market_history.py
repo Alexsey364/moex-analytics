@@ -9,6 +9,8 @@ import time
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
+import numpy as np
+
 from .actual_backfill.schema import DDL
 from .config import PROJECT_ROOT
 from .database import database_path
@@ -347,3 +349,102 @@ def backfill_official_market_series(
             "resume_from": resume_from,
         }
     return result
+
+
+def evaluate_market_factors(con, horizons=(1, 5, 20), folds=5) -> dict:
+    """Same-sample expanding walk-forward screen; research only, never model promotion."""
+    ensure_schema(con)
+    prices = con.execute(
+        "SELECT trade_date,close FROM canonical_daily_prices WHERE canonical_secid='SBER' ORDER BY trade_date"
+    ).df()
+    breadth = con.execute("""SELECT trade_date,
+        (advancing-declining)::DOUBLE/nullif(tradable_count,0) breadth_balance,
+        (advancing_turnover-declining_turnover)/nullif(total_turnover,0) turnover_balance,
+        return_dispersion,total_turnover FROM market_breadth_daily ORDER BY trade_date""").df()
+    macro = con.execute("""SELECT observation_date trade_date,series_id,value FROM macro_observations
+        WHERE series_id IN ('moex_imoex','moex_rvi','moex_rusfar')
+        QUALIFY row_number() over(PARTITION BY series_id,observation_date
+        ORDER BY available_from DESC)=1""").df()
+    if prices.empty or breadth.empty:
+        return {"status": "insufficient_data", "evaluations": 0}
+    macro = macro.pivot(index="trade_date", columns="series_id", values="value").reset_index()
+    frame = prices.merge(breadth, on="trade_date", how="inner").merge(macro, on="trade_date", how="left")
+    frame = frame.sort_values("trade_date")
+    for column in ("moex_imoex", "moex_rvi", "moex_rusfar", "total_turnover"):
+        if column in frame:
+            frame[f"{column}_change"] = frame[column].pct_change(fill_method=None)
+    features = [
+        c
+        for c in (
+            "breadth_balance",
+            "turnover_balance",
+            "return_dispersion",
+            "total_turnover_change",
+            "moex_imoex_change",
+            "moex_rvi_change",
+            "moex_rusfar_change",
+        )
+        if c in frame
+    ]
+    con.execute("DELETE FROM stage21_factor_evaluation")
+    rng = np.random.default_rng(21)
+    written = useful = rejected = 0
+    for horizon in horizons:
+        work = frame.copy()
+        work["target"] = work.close.shift(-horizon) / work.close - 1
+        for feature in features:
+            sample = work[["trade_date", feature, "target"]].replace([np.inf, -np.inf], np.nan).dropna()
+            if len(sample) < max(60, folds * 12):
+                continue
+            boundaries = np.linspace(len(sample) // 3, len(sample), folds + 1, dtype=int)
+            baseline_hits, model_hits, ics = [], [], []
+            fold_wins = 0
+            for idx in range(folds):
+                train = sample.iloc[: boundaries[idx]]
+                test = sample.iloc[boundaries[idx] : boundaries[idx + 1]]
+                if test.empty or train[feature].std() == 0:
+                    continue
+                slope, intercept = np.polyfit(train[feature], train.target, 1)
+                baseline = np.repeat(train.target.mean() >= 0, len(test))
+                predicted = slope * test[feature].to_numpy() + intercept >= 0
+                actual = test.target.to_numpy() >= 0
+                bh, mh = (baseline == actual).astype(float), (predicted == actual).astype(float)
+                baseline_hits.extend(bh)
+                model_hits.extend(mh)
+                fold_wins += int(mh.mean() > bh.mean())
+                ics.append(float(test[[feature, "target"]].corr(method="spearman").iloc[0, 1]))
+            if not model_hits:
+                continue
+            delta = np.asarray(model_hits) - np.asarray(baseline_hits)
+            boot = [rng.choice(delta, len(delta), replace=True).mean() for _ in range(1000)]
+            low, high = np.quantile(boot, [0.025, 0.975])
+            status = "useful" if low > 0 and fold_wins >= 3 else "rejected" if high < 0 else "experimental"
+            useful += status == "useful"
+            rejected += status == "rejected"
+            written += 1
+            con.execute(
+                "INSERT INTO stage21_factor_evaluation VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,current_timestamp)",
+                [
+                    feature,
+                    horizon,
+                    sample.trade_date.min(),
+                    sample.trade_date.max(),
+                    len(sample),
+                    folds,
+                    float(np.mean(baseline_hits)),
+                    float(np.mean(model_hits)),
+                    float(delta.mean()),
+                    float(low),
+                    float(high),
+                    float(np.nanmean(ics)),
+                    fold_wins,
+                    status,
+                ],
+            )
+    return {
+        "status": "research_only_no_promotion",
+        "evaluations": written,
+        "useful": useful,
+        "rejected": rejected,
+        "features": features,
+    }

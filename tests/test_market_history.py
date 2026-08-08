@@ -4,7 +4,11 @@ import duckdb
 
 from moex_analytics.actual_backfill.schema import DDL
 from moex_analytics.macro.sources.moex import INSTRUMENTS
-from moex_analytics.market_history import build_trading_statistics, eligible_universe
+from moex_analytics.market_history import (
+    build_trading_statistics,
+    eligible_universe,
+    evaluate_market_factors,
+)
 
 
 def _database():
@@ -101,3 +105,11 @@ def test_statistics_use_one_explicit_board_chain_and_are_point_in_time():
     assert (
         con.execute("SELECT advancing FROM market_breadth_daily ORDER BY trade_date DESC").fetchone()[0] == 1
     )
+
+
+def test_factor_evaluation_refuses_to_invent_results_without_sample():
+    con = _database()
+    con.execute("CREATE TABLE canonical_daily_prices(trade_date DATE,canonical_secid VARCHAR,close DOUBLE)")
+    con.execute("""CREATE TABLE macro_observations(series_id VARCHAR,observation_date DATE,
+        available_from TIMESTAMP,value DOUBLE)""")
+    assert evaluate_market_factors(con) == {"status": "insufficient_data", "evaluations": 0}
