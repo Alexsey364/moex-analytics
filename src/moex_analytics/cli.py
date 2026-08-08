@@ -377,6 +377,13 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         sub.add_parser(name)
     for name in (
+        "backfill-actual-fundamentals",
+        "backfill-actual-universe",
+        "backfill-actual-external",
+        "run-actual-historical-backfill",
+    ):
+        sub.add_parser(name)
+    for name in (
         "build-modular-sber-samples",
         "validate-sber-futures-specs",
         "calculate-sber-futures-basis",
@@ -1028,6 +1035,29 @@ def main() -> None:
                 "complete-historical-data-audit": historical.complete_historical_data_audit,
             }
             print(actions[args.command](con))
+    elif args.command in {
+        "backfill-actual-fundamentals",
+        "backfill-actual-universe",
+        "backfill-actual-external",
+        "run-actual-historical-backfill",
+    }:
+        from .actual_backfill import core as actual
+
+        init_database()
+        with connection() as con:
+            if args.command == "backfill-actual-fundamentals":
+                result = actual.backfill_historical_fundamentals(con)
+            elif args.command == "backfill-actual-universe":
+                result = actual.backfill_universe_pilot(con)
+            elif args.command == "backfill-actual-external":
+                result = actual.backfill_external_and_contracts(con)
+            else:
+                result = {
+                    "fundamentals": actual.backfill_historical_fundamentals(con),
+                    "universe": actual.backfill_universe_pilot(con),
+                    "external": actual.backfill_external_and_contracts(con),
+                }
+            print(result)
     elif args.command in {
         "build-modular-sber-samples",
         "validate-sber-futures-specs",
