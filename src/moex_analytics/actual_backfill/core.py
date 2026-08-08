@@ -120,12 +120,29 @@ def _save_document(con, issuer: str, spec: dict, content: bytes, mime: str) -> s
     path = RAW_ROOT / f"{issuer}_{spec['period']}_{document_id}.html"
     if not path.exists():
         path.write_bytes(content)
+    try:
+        stored_path = str(path.relative_to(PROJECT_ROOT))
+    except ValueError:
+        # Tests and isolated reproductions deliberately place raw files outside the repository.
+        stored_path = str(path)
     con.execute(
         """INSERT OR REPLACE INTO actual_document_inventory VALUES
         (?,?,?,?,?,?,?,?,?,?,?,?,?,current_timestamp)""",
-        [document_id, issuer, "official annual results", "IFRS", str(spec["period"]),
-         spec["published"], spec["url"], mime, digest, len(content), VERSION,
-         "downloaded_hashed", str(path.relative_to(PROJECT_ROOT))],
+        [
+            document_id,
+            issuer,
+            "official annual results",
+            "IFRS",
+            str(spec["period"]),
+            spec["published"],
+            spec["url"],
+            mime,
+            digest,
+            len(content),
+            VERSION,
+            "downloaded_hashed",
+            stored_path,
+        ],
     )
     return document_id
 
@@ -145,9 +162,26 @@ def import_moex_annual_history(con, session: requests.Session | None = None) -> 
         con.execute(
             """INSERT OR REPLACE INTO issuer_fundamental_documents VALUES
             (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,current_timestamp)""",
-            [document_id, "MOEX", "MOEX IR", "moex.com", spec["url"], spec["url"],
-             "annual results HTML", "IFRS", str(spec["period"]), spec["published"], available,
-             mime, digest, True, "parsed", "validated", None, None],
+            [
+                document_id,
+                "MOEX",
+                "MOEX IR",
+                "moex.com",
+                spec["url"],
+                spec["url"],
+                "annual results HTML",
+                "IFRS",
+                str(spec["period"]),
+                spec["published"],
+                available,
+                mime,
+                digest,
+                True,
+                "parsed",
+                "validated",
+                None,
+                None,
+            ],
         )
         documents += 1
         for metric, label, token, value, unit in spec["metrics"]:
@@ -158,16 +192,29 @@ def import_moex_annual_history(con, session: requests.Session | None = None) -> 
                 con.execute(
                     """INSERT OR REPLACE INTO actual_manual_review_candidates VALUES
                     (?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',current_timestamp)""",
-                    [candidate_id, "MOEX", metric, str(spec["period"]), spec["published"],
-                     spec["url"], digest, None, "financial highlights", label, value, unit,
-                     "expected label/token pair not both found in downloaded bytes"],
+                    [
+                        candidate_id,
+                        "MOEX",
+                        metric,
+                        str(spec["period"]),
+                        spec["published"],
+                        spec["url"],
+                        digest,
+                        None,
+                        "financial highlights",
+                        label,
+                        value,
+                        unit,
+                        "expected label/token pair not both found in downloaded bytes",
+                    ],
                 )
                 review += 1
                 continue
             before = con.execute(
                 """SELECT count(*) FROM issuer_fundamental_values
                 WHERE secid='MOEX' AND metric=? AND period_end=? AND reporting_standard='IFRS'
-                AND revision='original'""", [metric, spec["period"]]
+                AND revision='original'""",
+                [metric, spec["period"]],
             ).fetchone()[0]
             con.execute(
                 """INSERT OR REPLACE INTO issuer_fundamental_values
@@ -177,8 +224,23 @@ def import_moex_annual_history(con, session: requests.Session | None = None) -> 
                  parser_version,issuer,raw_unit)
                 VALUES ('MOEX',?,'IFRS',NULL,?,?,?,?,?,?,?,?,?,'validated','original',?,?,?,?,
                         'MOEX',?)""",
-                [metric, spec["period"], spec["published"], available, spec["url"], spec["url"],
-                 f"HTML:{label}", value, value, unit, document_id, digest, label, VERSION, unit],
+                [
+                    metric,
+                    spec["period"],
+                    spec["published"],
+                    available,
+                    spec["url"],
+                    spec["url"],
+                    f"HTML:{label}",
+                    value,
+                    value,
+                    unit,
+                    document_id,
+                    digest,
+                    label,
+                    VERSION,
+                    unit,
+                ],
             )
             inserted += 0 if before else 1
         con.execute(
@@ -205,8 +267,7 @@ def sync_document_inventory(con) -> dict:
         con.execute(
             """INSERT OR REPLACE INTO actual_document_inventory VALUES
             (?,?,?,?,?,?,?,?,?,?,?,?,?,current_timestamp)""",
-            [doc, issuer, kind, standard, period, published, url, mime, digest, size, parser,
-             status, local],
+            [doc, issuer, kind, standard, period, published, url, mime, digest, size, parser, status, local],
         )
     return {"documents": len(rows)}
 
@@ -226,8 +287,15 @@ def backfill_historical_fundamentals(con) -> dict:
         ('fundamentals',?,?,current_timestamp,?,?,?,'completed')""",
         [run_id, started, json.dumps(before, default=str), json.dumps(after, default=str), new_rows],
     )
-    return {"run_id": run_id, "before": before, "after": after, "SBER": sber,
-            "MOEX": moex, "inventory": inventory, "new_rows": new_rows}
+    return {
+        "run_id": run_id,
+        "before": before,
+        "after": after,
+        "SBER": sber,
+        "MOEX": moex,
+        "inventory": inventory,
+        "new_rows": new_rows,
+    }
 
 
 def _block_rows(block: dict) -> list[dict]:
@@ -272,8 +340,15 @@ def backfill_universe_pilot(con, client: MoexClient | None = None, limit: int = 
                     con.execute(
                         """INSERT OR IGNORE INTO tradable_on_date_universe VALUES
                         (?,?,?,?,?,?,true,?,current_timestamp)""",
-                        [row["trade_date"], secid, board["board"], row["close"], row["volume"],
-                         row["value"], row["source"]],
+                        [
+                            row["trade_date"],
+                            secid,
+                            board["board"],
+                            row["close"],
+                            row["volume"],
+                            row["value"],
+                            row["source"],
+                        ],
                     )
                     security_rows += 1
             received += security_rows
@@ -295,12 +370,31 @@ def backfill_universe_pilot(con, client: MoexClient | None = None, limit: int = 
     con.execute(
         """INSERT INTO universe_pilot_runs VALUES
         (?,?,?,?,?,?,?,?,?,?,current_timestamp,?)""",
-        [run_id, len(candidates), len(candidates), requests_count, received, after - before,
-         errors, elapsed, disk, started, json.dumps(detail)],
+        [
+            run_id,
+            len(candidates),
+            len(candidates),
+            requests_count,
+            received,
+            after - before,
+            errors,
+            elapsed,
+            disk,
+            started,
+            json.dumps(detail),
+        ],
     )
-    return {"run_id": run_id, "securities": len(candidates), "inactive": len(candidates),
-            "requests": requests_count, "rows_received": received, "rows_inserted": after - before,
-            "errors": errors, "elapsed_seconds": elapsed, "disk_bytes": disk}
+    return {
+        "run_id": run_id,
+        "securities": len(candidates),
+        "inactive": len(candidates),
+        "requests": requests_count,
+        "rows_received": received,
+        "rows_inserted": after - before,
+        "errors": errors,
+        "elapsed_seconds": elapsed,
+        "disk_bytes": disk,
+    }
 
 
 def backfill_official_fx(con, date_from: date = date(1992, 1, 1), date_to: date | None = None) -> dict:
@@ -318,12 +412,30 @@ def backfill_official_fx(con, date_from: date = date(1992, 1, 1), date_to: date 
             "SELECT count(*),min(observation_date),max(observation_date) FROM macro_observations WHERE series_id=?",
             [series_id],
         ).fetchone()
-        result[series_id] = {"downloaded": len(observations), "inserted": inserted,
-                             "before": before, "after": after, "source": observations[0].source if observations else None}
+        result[series_id] = {
+            "downloaded": len(observations),
+            "inserted": inserted,
+            "before": before,
+            "after": after,
+            "source": observations[0].source if observations else None,
+        }
     return result
 
 
-PORTFOLIO_SECIDS = ("X5", "SBER", "SBERP", "LKOH", "LSNG", "LSNGP", "MTSS", "TRNFP", "TATN", "TATNP", "PHOR", "MOEX")
+PORTFOLIO_SECIDS = (
+    "X5",
+    "SBER",
+    "SBERP",
+    "LKOH",
+    "LSNG",
+    "LSNGP",
+    "MTSS",
+    "TRNFP",
+    "TATN",
+    "TATNP",
+    "PHOR",
+    "MOEX",
+)
 
 
 def backfill_portfolio_dividends(con, client: MoexClient | None = None) -> dict:
@@ -353,16 +465,83 @@ def dividend_pair_consistency(frame, ordinary: str, preferred: str) -> dict:
 def resolve_external_sources(con) -> dict:
     """Record concrete official resolutions; Brent is a futures proxy, not spot oil."""
     rows = [
-        ("cbr_usd_rub", "FX", "Bank of Russia", "https://www.cbr.ru/scripts/XML_dynamic.asp", "official public XML interface", "free", "effective date 00:00 Moscow", "validated", "loaded", "official rate; not market close"),
-        ("cbr_eur_rub", "FX", "Bank of Russia", "https://www.cbr.ru/scripts/XML_dynamic.asp", "official public XML interface", "free", "effective date 00:00 Moscow", "validated", "loaded", "official rate; not market close"),
-        ("cbr_cny_rub", "FX", "Bank of Russia", "https://www.cbr.ru/scripts/XML_dynamic.asp", "official public XML interface", "free", "effective date 00:00 Moscow", "validated", "loaded", "official rate; not market close"),
-        ("brent_moex_futures", "oil", "Moscow Exchange", "https://iss.moex.com/iss/history/engines/futures/markets/forts/securities", "official ISS public interface; redistribution terms require separate verification", "free", "MOEX trading date", "proxy_only", "resolved_not_loaded", "USD per barrel futures; never labelled spot Brent or Urals"),
-        ("urals", "oil", "none validated", "", "unresolved", "paid/restricted", "unknown", "missing", "requires_paid_data", "no safe free PIT daily source proven"),
-        ("fertilizer_proxy", "commodity", "none validated", "", "unresolved", "paid/restricted", "unknown", "missing", "requires_paid_data", "no safe free PIT daily source proven"),
+        (
+            "cbr_usd_rub",
+            "FX",
+            "Bank of Russia",
+            "https://www.cbr.ru/scripts/XML_dynamic.asp",
+            "official public XML interface",
+            "free",
+            "effective date 00:00 Moscow",
+            "validated",
+            "loaded",
+            "official rate; not market close",
+        ),
+        (
+            "cbr_eur_rub",
+            "FX",
+            "Bank of Russia",
+            "https://www.cbr.ru/scripts/XML_dynamic.asp",
+            "official public XML interface",
+            "free",
+            "effective date 00:00 Moscow",
+            "validated",
+            "loaded",
+            "official rate; not market close",
+        ),
+        (
+            "cbr_cny_rub",
+            "FX",
+            "Bank of Russia",
+            "https://www.cbr.ru/scripts/XML_dynamic.asp",
+            "official public XML interface",
+            "free",
+            "effective date 00:00 Moscow",
+            "validated",
+            "loaded",
+            "official rate; not market close",
+        ),
+        (
+            "brent_moex_futures",
+            "oil",
+            "Moscow Exchange",
+            "https://iss.moex.com/iss/history/engines/futures/markets/forts/securities",
+            "official ISS public interface; redistribution terms require separate verification",
+            "free",
+            "MOEX trading date",
+            "proxy_only",
+            "resolved_not_loaded",
+            "USD per barrel futures; never labelled spot Brent or Urals",
+        ),
+        (
+            "urals",
+            "oil",
+            "none validated",
+            "",
+            "unresolved",
+            "paid/restricted",
+            "unknown",
+            "missing",
+            "requires_paid_data",
+            "no safe free PIT daily source proven",
+        ),
+        (
+            "fertilizer_proxy",
+            "commodity",
+            "none validated",
+            "",
+            "unresolved",
+            "paid/restricted",
+            "unknown",
+            "missing",
+            "requires_paid_data",
+            "no safe free PIT daily source proven",
+        ),
     ]
     con.executemany(
         """INSERT OR REPLACE INTO external_factor_catalog VALUES
-        (?,?,?,?,?,?,?,?,?,?,current_timestamp)""", rows
+        (?,?,?,?,?,?,?,?,?,?,current_timestamp)""",
+        rows,
     )
     return {"resolved": 4, "paid_restricted": 2, "brent_status": "official_moex_futures_proxy_not_spot"}
 
@@ -389,43 +568,82 @@ def backfill_futures_specifications(con, client: MoexClient | None = None) -> di
             expiration = row.get("LASTTRADEDATE") or known_expiration
             underlying = row.get("ASSETCODE") or row.get("ASSET")
             currency = row.get("CURRENCYID") or "RUB"
-            units_valid = all(value not in (None, "", 0) for value in (lot, step, step_value, expiration, underlying, currency))
-            before = con.execute("SELECT count(*) FROM futures_spec_documents WHERE secid=?", [secid]).fetchone()[0]
+            units_valid = all(
+                value not in (None, "", 0)
+                for value in (lot, step, step_value, expiration, underlying, currency)
+            )
+            before = con.execute(
+                "SELECT count(*) FROM futures_spec_documents WHERE secid=?", [secid]
+            ).fetchone()[0]
             con.execute(
                 """INSERT OR REPLACE INTO futures_spec_documents VALUES
                 (?,?,NULL,?,?,?,?,?,?,?,?,?,?,current_timestamp)""",
-                [secid, date.today(), underlying, lot, lot, step, step_value, currency, expiration,
-                 f"{client.base_url}/{path}", digest, units_valid],
+                [
+                    secid,
+                    date.today(),
+                    underlying,
+                    lot,
+                    lot,
+                    step,
+                    step_value,
+                    currency,
+                    expiration,
+                    f"{client.base_url}/{path}",
+                    digest,
+                    units_valid,
+                ],
             )
             inserted += 0 if before else 1
             validated += int(units_valid)
         except Exception:
             errors += 1
-    return {"contracts": len(contracts), "inserted": inserted, "validated": validated,
-            "errors": errors, "basis_enabled": False,
-            "reason": "spot/futures scale and underlying-unit equivalence still require validation"}
+    return {
+        "contracts": len(contracts),
+        "inserted": inserted,
+        "validated": validated,
+        "errors": errors,
+        "basis_enabled": False,
+        "reason": "spot/futures scale and underlying-unit equivalence still require validation",
+    }
 
 
 def backfill_external_and_contracts(con) -> dict:
     started = datetime.now(UTC)
     before = {
-        "fx": con.execute("SELECT count(*) FROM macro_observations WHERE series_id IN ('cbr_usd_rub','cbr_eur_rub','cbr_cny_rub')").fetchone()[0],
+        "fx": con.execute(
+            "SELECT count(*) FROM macro_observations WHERE series_id IN ('cbr_usd_rub','cbr_eur_rub','cbr_cny_rub')"
+        ).fetchone()[0],
         "dividends": con.execute("SELECT count(*) FROM dividends").fetchone()[0],
-        "specs": con.execute("SELECT count(*) FROM futures_spec_documents").fetchone()[0] if _table_present(con, "futures_spec_documents") else 0,
+        "specs": con.execute("SELECT count(*) FROM futures_spec_documents").fetchone()[0]
+        if _table_present(con, "futures_spec_documents")
+        else 0,
     }
     ensure_schema(con)
-    result = {"fx": backfill_official_fx(con), "dividends": backfill_portfolio_dividends(con),
-              "futures": backfill_futures_specifications(con),
-              "source_resolution": resolve_external_sources(con)}
+    result = {
+        "fx": backfill_official_fx(con),
+        "dividends": backfill_portfolio_dividends(con),
+        "futures": backfill_futures_specifications(con),
+        "source_resolution": resolve_external_sources(con),
+    }
     after = {
-        "fx": con.execute("SELECT count(*) FROM macro_observations WHERE series_id IN ('cbr_usd_rub','cbr_eur_rub','cbr_cny_rub')").fetchone()[0],
+        "fx": con.execute(
+            "SELECT count(*) FROM macro_observations WHERE series_id IN ('cbr_usd_rub','cbr_eur_rub','cbr_cny_rub')"
+        ).fetchone()[0],
         "dividends": con.execute("SELECT count(*) FROM dividends").fetchone()[0],
         "specs": con.execute("SELECT count(*) FROM futures_spec_documents").fetchone()[0],
     }
-    result.update({"before": before, "after": after, "new_rows": sum(after[k] - before[k] for k in after),
-                   "started_at": started})
+    result.update(
+        {
+            "before": before,
+            "after": after,
+            "new_rows": sum(after[k] - before[k] for k in after),
+            "started_at": started,
+        }
+    )
     return result
 
 
 def _table_present(con, name: str) -> bool:
-    return bool(con.execute("SELECT count(*) FROM information_schema.tables WHERE table_name=?", [name]).fetchone()[0])
+    return bool(
+        con.execute("SELECT count(*) FROM information_schema.tables WHERE table_name=?", [name]).fetchone()[0]
+    )

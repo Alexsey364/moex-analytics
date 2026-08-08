@@ -450,6 +450,13 @@ def build_parser() -> argparse.ArgumentParser:
         "model-governance-status",
     ):
         sub.add_parser(name)
+    seed_market = sub.add_parser("seed-market-history-jobs")
+    seed_market.add_argument("--limit", type=int)
+    market_batch = sub.add_parser("backfill-market-history")
+    market_batch.add_argument("--jobs", type=int, default=25)
+    market_batch.add_argument("--pages-per-job", type=int)
+    sub.add_parser("build-trading-statistics")
+    sub.add_parser("market-history-status")
     for name in (
         "validate-portfolio-alpha",
         "validate-cross-instrument-factors",
@@ -1197,6 +1204,25 @@ def main() -> None:
                 "run-portfolio-validation": portfolio_v14.run_portfolio_validation,
             }
             print(actions[args.command](con))
+    elif args.command in {
+        "seed-market-history-jobs",
+        "backfill-market-history",
+        "build-trading-statistics",
+        "market-history-status",
+    }:
+        from . import market_history
+
+        init_database()
+        with connection() as con:
+            if args.command == "seed-market-history-jobs":
+                result = market_history.seed_jobs(con, limit=args.limit)
+            elif args.command == "backfill-market-history":
+                result = market_history.run_batch(con, jobs=args.jobs, pages_per_job=args.pages_per_job)
+            elif args.command == "build-trading-statistics":
+                result = market_history.build_trading_statistics(con)
+            else:
+                result = market_history.coverage(con, save=True)
+            print(result)
     elif args.command in {
         "save-portfolio-reconciliation",
         "backfill-official-fundamentals",
