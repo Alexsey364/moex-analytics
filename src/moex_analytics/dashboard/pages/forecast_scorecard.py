@@ -127,3 +127,38 @@ def render_track_record():
     st.subheader("Learning journal")
     st.dataframe(_q("SELECT * FROM forecast_learning_journal ORDER BY created_at DESC"),
                  use_container_width=True)
+
+
+def render_quality():
+    st.header("Качество прогнозов")
+    try:
+        with connection() as con:
+            status = forecast_status(con)
+    except Exception:
+        st.info("Live-история пока не создана.")
+        return
+    columns = st.columns(4)
+    columns[0].metric("Прогнозов", status["total"])
+    columns[1].metric("Созрело", status["matured"])
+    columns[2].metric("Ожидает", status["pending"])
+    columns[3].metric("Статус", status["live_status"])
+    if status["matured"] < 20:
+        st.warning("Live-история пока накапливается; статистические выводы преждевременны.")
+    st.dataframe(_q("SELECT * FROM forecast_scorecards ORDER BY horizon_sessions"),
+                 use_container_width=True, hide_index=True)
+    st.subheader("Последние ошибки")
+    st.dataframe(_q("SELECT secid,horizon_sessions,error_category,causality_warning,created_at "
+                    "FROM forecast_learning_journal WHERE error_category<>'no_direction_error' "
+                    "ORDER BY created_at DESC LIMIT 20"), use_container_width=True, hide_index=True)
+
+
+def render_update_history():
+    st.header("История обновлений")
+    frame = _q("SELECT started_at Дата,update_type Тип,duration_seconds Время,"
+               "http_requests Requests,rows_inserted Rows,errors Errors,new_forecasts \"New forecasts\","
+               "matured_forecasts \"Matured forecasts\",status Статус FROM daily_update_runs "
+               "ORDER BY started_at DESC")
+    if frame.empty:
+        st.info("История обновлений пока пуста.")
+    else:
+        st.dataframe(frame, use_container_width=True, hide_index=True)

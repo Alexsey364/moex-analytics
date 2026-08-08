@@ -82,7 +82,7 @@ def test_daily_report_schema_is_immutable():
 def test_launchers_are_safe_and_human_friendly():
     daily = Path("run_daily_analysis.bat").read_text(encoding="utf-8")
     launcher = Path("START_MOEX_ANALYTICS.bat").read_text(encoding="utf-8")
-    assert "run-daily-intelligence" in daily
+    assert "quick-daily-update" in daily
     assert "dashboard.launcher" in launcher
     assert "http://localhost:8501" in launcher
     assert "taskkill" not in launcher.lower()

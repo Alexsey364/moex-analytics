@@ -224,10 +224,12 @@ basic_pages = {
     "Акции": human_portfolio.render_stocks,
     "Спросить про портфель": human_portfolio.render_ask,
     "Как программа прогнозирует": forecast_scorecard.render_basic,
+    "Качество прогнозов": forecast_scorecard.render_quality,
     "Дивиденды": human_portfolio.render_dividends,
     "Риски": human_portfolio.render_risks,
     "Сценарии": human_portfolio.render_scenarios,
     "Обновить данные": human_portfolio.render_update,
+    "История обновлений": forecast_scorecard.render_update_history,
 }
 advanced = st.sidebar.toggle("Расширенный режим", value=False)
 if advanced:

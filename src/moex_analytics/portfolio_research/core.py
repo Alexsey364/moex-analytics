@@ -316,7 +316,7 @@ def download_portfolio_history(con, client=None):  # pragma: no cover
             "SELECT max(trade_date) FROM daily_prices WHERE secid=? AND board=?",
             [source, board],
         ).fetchone()[0]
-        incremental_from = max(from_date, latest_local + timedelta(days=1)) if latest_local else from_date
+        incremental_from = max(from_date, latest_local - timedelta(days=7)) if latest_local else from_date
         if incremental_from > min(to_date, date.today()):
             continue
         rows = []

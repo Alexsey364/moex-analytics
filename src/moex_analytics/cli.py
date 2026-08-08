@@ -421,6 +421,10 @@ def build_parser() -> argparse.ArgumentParser:
         "forecast-track-record",
         "forecast-status",
         "update-forecast-scorecards",
+        "quick-daily-update",
+        "deep-update",
+        "model-research-dry-run",
+        "model-governance-status",
     ):
         sub.add_parser(name)
     for name in (
@@ -1131,8 +1135,17 @@ def main() -> None:
         "forecast-track-record",
         "forecast-status",
         "update-forecast-scorecards",
+        "quick-daily-update",
+        "deep-update",
+        "model-research-dry-run",
+        "model-governance-status",
     }:
-        from .portfolio_research import forecast_scorecards, human_intelligence, intelligence
+        from .portfolio_research import (
+            daily_governance,
+            forecast_scorecards,
+            human_intelligence,
+            intelligence,
+        )
 
         init_database()
         with connection() as con:
@@ -1155,6 +1168,12 @@ def main() -> None:
                 "forecast-track-record": forecast_scorecards.forecast_track_record,
                 "forecast-status": forecast_scorecards.forecast_status,
                 "update-forecast-scorecards": forecast_scorecards.update_forecast_scorecards,
+                "quick-daily-update": daily_governance.run_daily_update,
+                "deep-update": lambda con: daily_governance.run_daily_update(con, mode="deep"),
+                "model-research-dry-run": lambda con: daily_governance.run_daily_update(
+                    con, mode="retrain", dry_run=True
+                ),
+                "model-governance-status": daily_governance.governance_status,
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":

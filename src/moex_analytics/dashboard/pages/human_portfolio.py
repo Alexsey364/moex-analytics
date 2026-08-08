@@ -212,6 +212,10 @@ def render_today():
             st.caption(f"Главный риск: {row.top_negative} · Следующий транш: до 10% очередного пополнения")
     if st.button("Обновить анализ сейчас"):
         _run_recalculation()
+    live = _q("SELECT count(*) matured FROM forecast_outcomes WHERE outcome_status='matured'")
+    matured = int(live.iloc[0].matured) if not live.empty else 0
+    st.caption(f"Модель проверена на {matured} live-прогнозах. "
+               + ("Live-история пока накапливается." if matured < 20 else "См. качество прогнозов."))
 
 
 def render_portfolio():
@@ -543,12 +547,22 @@ def render_scenarios():
 
 def render_update():
     st.header("Обновить данные")
-    st.info("Для полного обновления закройте другие процессы, использующие базу.")
-    if st.button("Запустить ежедневный анализ", type="primary"):
-        from moex_analytics.portfolio_research.human_intelligence import run_daily_intelligence
+    st.info("Быстрое — ежедневно. Глубокое — периодически. Переобучение — редко и без автопродвижения.")
+    from moex_analytics.portfolio_research.daily_governance import run_daily_update
 
-        with connection() as con:
-            result = run_daily_intelligence(con)
-        st.success(result["message"])
-        for warning in result["warnings"]:
-            st.warning(warning)
+    actions = (("🟢 Быстрое ежедневное обновление", "quick", False),
+               ("🔵 Глубокое обновление", "deep", False),
+               ("🟠 Исследовать/переобучить модели", "retrain", True))
+    for label, mode, dry_run in actions:
+        if st.button(label, use_container_width=True):
+            progress = st.progress(0, text="Подготовка")
+            labels = ["Цены", "Макро", "Фундаментал", "Дивиденды", "Режимы", "Портфель",
+                      "Прогнозы", "Проверка старых прогнозов"]
+            for index, name in enumerate(labels, 1):
+                progress.progress(index / 8, text=f"{index}/8 {name}")
+            with connection() as con:
+                result = run_daily_update(con, mode=mode, dry_run=dry_run)
+            st.success(f"Обновление завершено: {result['status']}")
+            st.json({key: result[key] for key in ("duration_seconds", "sources_checked",
+                    "http_requests", "rows_inserted", "errors", "new_forecasts",
+                    "matured_forecasts")})
