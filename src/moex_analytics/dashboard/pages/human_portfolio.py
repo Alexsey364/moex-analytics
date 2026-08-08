@@ -359,6 +359,19 @@ def _company_card(row, report_id):
             [report_id, row.secid],
         )
         st.dataframe(details, use_container_width=True, hide_index=True)
+    with st.expander("История прогнозов"):
+        history = _q(
+            "SELECT r.cutoff Дата,r.horizon_sessions Горизонт,r.qualitative_direction Прогноз,"
+            "r.current_price \"Цена тогда\",o.actual_close \"Цена потом\",o.actual_return Доходность,"
+            "coalesce(cast(o.direction_correct AS VARCHAR),o.outcome_status) Результат,"
+            "r.model_version Версия "
+            "FROM forecast_registry r LEFT JOIN forecast_outcomes o USING(forecast_id) "
+            "WHERE r.secid=? ORDER BY r.cutoff DESC,r.horizon_sessions", [row.secid]
+        )
+        if history.empty:
+            st.info("История начнёт накапливаться после ежедневного capture.")
+        else:
+            st.dataframe(history, use_container_width=True, hide_index=True)
 
 
 def _allocation_inputs(frame):

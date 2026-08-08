@@ -413,6 +413,14 @@ def build_parser() -> argparse.ArgumentParser:
         "portfolio-intelligence-status",
         "run-portfolio-intelligence",
         "run-daily-intelligence",
+        "capture-daily-forecasts",
+        "evaluate-matured-forecasts",
+        "build-forecast-scorecards",
+        "build-decision-scorecards",
+        "build-learning-journal",
+        "forecast-track-record",
+        "forecast-status",
+        "update-forecast-scorecards",
     ):
         sub.add_parser(name)
     for name in (
@@ -1115,8 +1123,16 @@ def main() -> None:
         "portfolio-intelligence-status",
         "run-portfolio-intelligence",
         "run-daily-intelligence",
+        "capture-daily-forecasts",
+        "evaluate-matured-forecasts",
+        "build-forecast-scorecards",
+        "build-decision-scorecards",
+        "build-learning-journal",
+        "forecast-track-record",
+        "forecast-status",
+        "update-forecast-scorecards",
     }:
-        from .portfolio_research import human_intelligence, intelligence
+        from .portfolio_research import forecast_scorecards, human_intelligence, intelligence
 
         init_database()
         with connection() as con:
@@ -1131,6 +1147,14 @@ def main() -> None:
                 "portfolio-intelligence-status": intelligence.intelligence_status,
                 "run-portfolio-intelligence": intelligence.run_intelligence,
                 "run-daily-intelligence": human_intelligence.run_daily_intelligence,
+                "capture-daily-forecasts": forecast_scorecards.capture_daily_forecasts,
+                "evaluate-matured-forecasts": forecast_scorecards.evaluate_matured_forecasts,
+                "build-forecast-scorecards": forecast_scorecards.build_forecast_scorecards,
+                "build-decision-scorecards": forecast_scorecards.build_decision_scorecards,
+                "build-learning-journal": forecast_scorecards.build_learning_journal,
+                "forecast-track-record": forecast_scorecards.forecast_track_record,
+                "forecast-status": forecast_scorecards.forecast_status,
+                "update-forecast-scorecards": forecast_scorecards.update_forecast_scorecards,
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":

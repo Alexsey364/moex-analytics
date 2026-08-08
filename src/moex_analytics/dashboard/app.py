@@ -33,6 +33,7 @@ from moex_analytics.dashboard.pages import (
     data_quality,
     database_status,
     deep_backfill,
+    forecast_scorecard,
     fundamentals,
     human_portfolio,
     instrument,
@@ -81,6 +82,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Model Track Record": forecast_scorecard.render_track_record,
     "Company Valuation": portfolio_research.render_company_valuation,
     "Regime Risk": portfolio_research.render_regime_risk_v15,
     "Portfolio Action Map": portfolio_research.render_action_map,
@@ -221,6 +223,7 @@ basic_pages = {
     "Куда вложить пополнение": human_portfolio.render_allocation,
     "Акции": human_portfolio.render_stocks,
     "Спросить про портфель": human_portfolio.render_ask,
+    "Как программа прогнозирует": forecast_scorecard.render_basic,
     "Дивиденды": human_portfolio.render_dividends,
     "Риски": human_portfolio.render_risks,
     "Сценарии": human_portfolio.render_scenarios,
