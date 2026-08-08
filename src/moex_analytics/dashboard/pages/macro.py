@@ -149,5 +149,11 @@ def render_audit():
                 if column in frame:
                     normalized = pd.json_normalize(frame.pop(column).map(json.loads))
                     frame = pd.concat([frame, normalized], axis=1)
+            for column in frame.select_dtypes(include="object"):
+                frame[column] = frame[column].map(
+                    lambda value: json.dumps(value, ensure_ascii=False)
+                    if isinstance(value, (dict, list))
+                    else "" if pd.isna(value) else str(value)
+                )
             st.dataframe(frame, use_container_width=True)
     st.warning("Статусы аудита исследовательские и не являются торговой рекомендацией.")

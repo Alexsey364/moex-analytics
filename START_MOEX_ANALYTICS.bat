@@ -20,9 +20,8 @@ start "" "http://localhost:8501"
 exit /b 0
 
 :update_and_start
-call run_daily_analysis.bat
-if errorlevel 1 echo [WARNING] Открываются ранее рассчитанные данные.
 start "MOEX Analytics" /min "%PYTHON_EXE%" -m moex_analytics.cli dashboard
 ping 127.0.0.1 -n 6 >nul
 start "" "http://localhost:8501"
+start "MOEX Daily Analysis" /min cmd /c call run_daily_analysis.bat
 endlocal

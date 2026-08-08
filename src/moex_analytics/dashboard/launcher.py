@@ -13,8 +13,12 @@ from pathlib import Path
 MARKER = Path(tempfile.gettempdir()) / "moex-analytics-dashboard-8501.json"
 
 
+def mark_process(pid: int | None = None, path: Path = MARKER) -> None:
+    path.write_text(json.dumps({"pid": pid or os.getpid()}), encoding="utf-8")
+
+
 def mark_current_process(path: Path = MARKER) -> None:
-    path.write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
+    mark_process(path=path)
 
 
 def _mark_pending(path: Path = MARKER) -> None:
@@ -68,7 +72,13 @@ def port_owner(port: int = 8501) -> tuple[int, str] | None:
 def classify_owner(owner: tuple[int, str] | None) -> str:
     if owner is None:
         return "free"
-    if (owner[0] == _marker_pid() or _pending_is_fresh()) and _healthy():
+    command = owner[1].lower().replace("\\", "/")
+    is_our_streamlit = (
+        "streamlit" in command
+        and "moex_analytics/dashboard/app.py" in command
+        and "8501" in command
+    )
+    if (owner[0] == _marker_pid() or _pending_is_fresh() or is_our_streamlit) and _healthy():
         return "dashboard"
     return "other"
 

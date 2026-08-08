@@ -86,6 +86,7 @@ def test_launchers_are_safe_and_human_friendly():
     assert "dashboard.launcher" in launcher
     assert "http://localhost:8501" in launcher
     assert "taskkill" not in launcher.lower()
+    assert launcher.index("moex_analytics.cli dashboard") < launcher.index("run_daily_analysis.bat")
 
 
 def test_production_sber_engine_is_not_imported():

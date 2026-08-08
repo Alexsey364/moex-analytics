@@ -62,3 +62,7 @@ def test_dashboard_launcher_classifies_port_owner(monkeypatch):
     assert launcher.classify_owner(None) == "free"
     assert launcher.classify_owner((10, "")) == "dashboard"
     assert launcher.classify_owner((11, "")) == "other"
+    monkeypatch.setattr(launcher, "_pending_is_fresh", lambda: False)
+    assert launcher.classify_owner(
+        (11, "python -m streamlit run C:/repo/moex_analytics/dashboard/app.py --server.port 8501")
+    ) == "dashboard"

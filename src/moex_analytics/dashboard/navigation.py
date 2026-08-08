@@ -3,6 +3,7 @@
 BASIC_LABELS = (
     "Сегодня",
     "Мой портфель",
+    "Куда вложить пополнение",
     "Акции",
     "Спросить про портфель",
     "Дивиденды",
@@ -10,6 +11,32 @@ BASIC_LABELS = (
     "Сценарии",
     "Обновить данные",
 )
+
+ADVANCED_GROUPS = {
+    "Данные": ("данн", "база", "качество", "обнов", "источник"),
+    "Фундаментал": ("fundamental", "valuation", "дивид", "мсфо"),
+    "Модели": ("модел", "прогноз", "regime", "режим"),
+    "Alpha Research": ("alpha", "feature", "interaction"),
+    "Backtest": ("backtest", "walk-forward", "проверка"),
+    "Portfolio Research": ("portfolio", "портфел"),
+    "Diagnostics": (),
+}
+
+
+def group_advanced_pages(pages: dict) -> dict[str, dict]:
+    groups = {name: {} for name in ADVANCED_GROUPS}
+    for label, renderer in pages.items():
+        lowered = label.lower()
+        group = next(
+            (
+                name
+                for name, fragments in ADVANCED_GROUPS.items()
+                if fragments and any(fragment in lowered for fragment in fragments)
+            ),
+            "Diagnostics",
+        )
+        groups[group][label] = renderer
+    return groups
 
 
 def navigation_pages(basic_pages: dict, advanced_pages: dict, advanced: bool = False) -> dict:

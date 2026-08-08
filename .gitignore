@@ -17,6 +17,8 @@ data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+data/local/*
+!data/local/.gitkeep
 data/review/*
 !data/review/.gitkeep
 database/*.duckdb

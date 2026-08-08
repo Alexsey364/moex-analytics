@@ -1134,8 +1134,10 @@ def main() -> None:
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":
+        from .dashboard.launcher import mark_process
+
         app = Path(__file__).parent / "dashboard" / "app.py"
-        subprocess.run(
+        process = subprocess.Popen(
             [
                 sys.executable,
                 "-m",
@@ -1147,8 +1149,10 @@ def main() -> None:
                 "--server.port",
                 "8501",
             ],
-            check=True,
         )
+        mark_process(process.pid)
+        if process.wait() != 0:
+            raise subprocess.CalledProcessError(process.returncode, process.args)
 
 
 if __name__ == "__main__":

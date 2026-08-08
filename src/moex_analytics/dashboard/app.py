@@ -25,7 +25,7 @@ if get_script_run_ctx() is None:
 
 from moex_analytics.dashboard.data_access import DatabaseUnavailable, database_summary
 from moex_analytics.dashboard.launcher import mark_current_process
-from moex_analytics.dashboard.navigation import navigation_pages
+from moex_analytics.dashboard.navigation import group_advanced_pages, navigation_pages
 from moex_analytics.dashboard.pages import (
     alpha_research,
     analytics,
@@ -218,6 +218,7 @@ advanced_pages = {
 basic_pages = {
     "Сегодня": human_portfolio.render_today,
     "Мой портфель": human_portfolio.render_portfolio,
+    "Куда вложить пополнение": human_portfolio.render_allocation,
     "Акции": human_portfolio.render_stocks,
     "Спросить про портфель": human_portfolio.render_ask,
     "Дивиденды": human_portfolio.render_dividends,
@@ -226,6 +227,12 @@ basic_pages = {
     "Обновить данные": human_portfolio.render_update,
 }
 advanced = st.sidebar.toggle("Расширенный режим", value=False)
-pages = navigation_pages(basic_pages, advanced_pages, advanced)
-selected = st.sidebar.radio("Навигация", pages, index=0)
-pages[selected]()
+if advanced:
+    groups = group_advanced_pages(advanced_pages)
+    group = st.sidebar.selectbox("Раздел", groups)
+    selected = st.sidebar.selectbox("Страница", groups[group])
+    groups[group][selected]()
+else:
+    pages = navigation_pages(basic_pages, advanced_pages)
+    selected = st.sidebar.radio("Навигация", pages, index=0)
+    pages[selected]()
