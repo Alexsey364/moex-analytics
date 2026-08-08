@@ -127,6 +127,13 @@ def _coverage_source(con, instrument: str, family: str) -> tuple[dict, str, str,
     if family == "dividends":
         return _table_stats(con, "dividends", "registry_close_date", f"canonical_secid IN ({marks})", list(secids)), "MOEX ISS", "official/free", "event"
     if family in {"fundamentals RAS", "fundamentals IFRS", "operating metrics"}:
+        if table_exists(con, "issuer_fundamental_values"):
+            standard = "RAS" if family.endswith("RAS") else "IFRS" if family.endswith("IFRS") else None
+            where = "issuer=? AND validation_status='validated'" + (
+                " AND upper(reporting_standard)=?" if standard else ""
+            )
+            params = [instrument, standard] if standard else [instrument]
+            return _table_stats(con, "issuer_fundamental_values", "period_end", where, params), "official issuer documents", "official/free", "quarterly"
         standard = "RAS" if family.endswith("RAS") else "IFRS" if family.endswith("IFRS") else None
         where = f"secid IN ({marks})" + (" AND upper(accounting_standard)=?" if standard else "")
         params = [*secids, standard] if standard else list(secids)
@@ -140,8 +147,12 @@ def _coverage_source(con, instrument: str, family: str) -> tuple[dict, str, str,
     if family == "ZCYC":
         return _table_stats(con, "deep_zcyc_archive", "observation_date"), "Bank of Russia", "official/free", "daily"
     if family == "broad universe":
+        if table_exists(con, "tradable_on_date_universe"):
+            return _table_stats(con, "tradable_on_date_universe", "trade_date"), "MOEX ISS trade history", "official/free", "daily"
         return _table_stats(con, "historical_universe_membership", "trade_date"), "MOEX ISS", "official/free", "daily"
     if family == "delisted universe":
+        if table_exists(con, "tradable_on_date_universe"):
+            return _table_stats(con, "tradable_on_date_universe", "trade_date", "inactive_at_audit"), "MOEX ISS trade history", "official/free", "daily"
         return _table_stats(con, "historical_equity_universe", "last_trade", "is_traded=false"), "MOEX ISS", "official/free", "event"
     if family == "liquidity":
         return _table_stats(con, "canonical_daily_prices", "trade_date", f"canonical_secid IN ({marks}) AND value IS NOT NULL", list(secids)), "derived from MOEX", "derived/free", "daily"

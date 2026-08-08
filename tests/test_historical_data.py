@@ -51,6 +51,16 @@ def test_coverage_matrix_has_every_instrument_family(con):
     assert row == (1, "partial")
 
 
+def test_actual_tradable_universe_replaces_zero_membership_without_claiming_index(con):
+    con.execute("""CREATE TABLE tradable_on_date_universe(
+        trade_date DATE,secid VARCHAR,inactive_at_audit BOOLEAN)""")
+    con.execute("INSERT INTO tradable_on_date_universe VALUES ('2001-01-03','OLD',true)")
+    build_coverage_matrix(con)
+    broad = con.execute("""SELECT observation_count,source FROM historical_data_coverage
+        WHERE instrument='SBER' AND dataset_family='broad universe'""").fetchone()
+    assert broad == (1, "MOEX ISS trade history")
+
+
 def test_priority_is_ordinal_and_paid_gap_is_not_critical_precision():
     critical = priority_score(relevance=3, depth_gain=3, pit=3, predictive_value=3, cross_section=3, cost=0, complexity=0, license_risk=0)
     paid = priority_score(relevance=3, depth_gain=3, pit=3, predictive_value=3, cross_section=3, cost=3, complexity=1, license_risk=3)

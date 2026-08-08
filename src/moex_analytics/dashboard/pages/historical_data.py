@@ -36,6 +36,35 @@ def render_basic() -> None:
     if frame.empty:
         st.warning("Покрытие ещё не рассчитано. Решения используют только ранее проверенные данные.")
         return
+    with connection(read_only=False) as con:
+        table_rows = con.execute("SELECT table_name FROM information_schema.tables").fetchall()
+        tables = {row[0] for row in table_rows}
+        if "issuer_fundamental_values" in tables:
+            fundamentals = con.execute(
+                """SELECT issuer,count(*) observations,count(DISTINCT period_end) periods,
+                min(period_end) earliest,max(period_end) latest
+                FROM issuer_fundamental_values WHERE validation_status='validated'
+                GROUP BY issuer ORDER BY issuer"""
+            ).df()
+            st.subheader("Fundamental history: до этапа → после")
+            baseline = {"SBER": 53}
+            fundamentals.insert(1, "before", fundamentals.issuer.map(baseline).fillna(0).astype(int))
+            st.dataframe(fundamentals, hide_index=True, use_container_width=True)
+        if "tradable_on_date_universe" in tables:
+            securities, rows = con.execute(
+                "SELECT count(DISTINCT secid),count(*) FROM tradable_on_date_universe"
+            ).fetchone()
+            st.subheader("Historical universe")
+            st.write(
+                f"PIT membership до этапа: 0 → tradable-on-date: "
+                f"{securities} securities / {rows} EOD rows"
+            )
+        fx = con.execute(
+            """SELECT count(*) FROM macro_observations
+            WHERE series_id IN ('cbr_usd_rub','cbr_eur_rub','cbr_cny_rub')"""
+        ).fetchone()[0]
+        st.subheader("FX")
+        st.write(f"Coverage catalog → validated official CBR history: {fx} observations")
     good = frame[frame.current_status == "complete"]
     partial = frame[frame.current_status == "partial"]
     missing = frame[frame.current_status == "missing"]
