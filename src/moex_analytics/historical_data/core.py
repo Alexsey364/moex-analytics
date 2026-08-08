@@ -133,7 +133,14 @@ def _coverage_source(con, instrument: str, family: str) -> tuple[dict, str, str,
                 " AND upper(reporting_standard)=?" if standard else ""
             )
             params = [instrument, standard] if standard else [instrument]
-            return _table_stats(con, "issuer_fundamental_values", "period_end", where, params), "official issuer documents", "official/free", "quarterly"
+            stats = _table_stats(con, "issuer_fundamental_values", "period_end", where, params)
+            stats["periods"] = int(
+                con.execute(
+                    f"SELECT count(DISTINCT period_end) FROM issuer_fundamental_values WHERE {where}",
+                    params,
+                ).fetchone()[0]
+            )
+            return stats, "official issuer documents", "official/free", "quarterly"
         standard = "RAS" if family.endswith("RAS") else "IFRS" if family.endswith("IFRS") else None
         where = f"secid IN ({marks})" + (" AND upper(accounting_standard)=?" if standard else "")
         params = [*secids, standard] if standard else list(secids)
@@ -146,6 +153,15 @@ def _coverage_source(con, instrument: str, family: str) -> tuple[dict, str, str,
         return _table_stats(con, "deep_sber_futures_daily", "trade_date", "open_interest IS NOT NULL"), "MOEX ISS", "official/free", "daily"
     if family == "ZCYC":
         return _table_stats(con, "deep_zcyc_archive", "observation_date"), "Bank of Russia", "official/free", "daily"
+    if family == "FX":
+        return _table_stats(
+            con, "macro_observations", "observation_date",
+            "series_id IN ('cbr_usd_rub','cbr_eur_rub','cbr_cny_rub')",
+        ), "Bank of Russia XML", "official/free", "daily"
+    if family == "RUONIA":
+        return _table_stats(con, "macro_observations", "observation_date", "series_id='cbr_ruonia'"), "Bank of Russia", "official/free", "daily"
+    if family == "rates":
+        return _table_stats(con, "macro_observations", "observation_date", "series_id='cbr_key_rate'"), "Bank of Russia", "official/free", "event"
     if family == "broad universe":
         if table_exists(con, "tradable_on_date_universe"):
             return _table_stats(con, "tradable_on_date_universe", "trade_date"), "MOEX ISS trade history", "official/free", "daily"
@@ -179,7 +195,9 @@ def build_coverage_matrix(con) -> dict:
         for family in DATASET_FAMILIES:
             stats, source, access, frequency = _coverage_source(con, instrument, family)
             count = stats["count"]
-            status = "missing" if count == 0 else "complete" if family == "EOD prices" and count >= 1000 else "partial"
+            complete = family == "EOD prices" and count >= 1000
+            complete |= family in {"fundamentals RAS", "fundamentals IFRS", "operating metrics"} and stats.get("periods", 0) >= 5
+            status = "missing" if count == 0 else "complete" if complete else "partial"
             paid = access == "paid/restricted"
             priority = priority_score(
                 relevance=3, depth_gain=3 if count == 0 else 1, pit=3 if "official" in access else 1,
@@ -188,7 +206,7 @@ def build_coverage_matrix(con) -> dict:
                 cost=3 if paid else 0, complexity=2 if family in {"options", "intraday", "order log/order book"} else 1,
                 license_risk=3 if paid else 0,
             )["status"]
-            pit = "validated" if count and family in {"EOD prices", "total return", "ZCYC"} else "unverified" if count else "missing"
+            pit = "validated" if count and family in {"EOD prices", "total return", "ZCYC", "FX", "RUONIA", "rates"} else "unverified" if count else "missing"
             integrity = pit_integrity_score(has_available_from=pit == "validated", publication_order_valid=True,
                                             revision_support=family in {"fundamentals RAS", "fundamentals IFRS", "ZCYC"},
                                             duplicates=0, impossible_dates=0, stale_ratio=0, frequency_match=frequency != "unknown")

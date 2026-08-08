@@ -338,6 +338,35 @@ def backfill_portfolio_dividends(con, client: MoexClient | None = None) -> dict:
     return result
 
 
+def dividend_pair_consistency(frame, ordinary: str, preferred: str) -> dict:
+    left = frame[frame["secid"] == ordinary][["record_date", "dps"]]
+    right = frame[frame["secid"] == preferred][["record_date", "dps"]]
+    joined = left.merge(right, on="record_date", how="outer", suffixes=("_ordinary", "_preferred"))
+    mismatches = joined[
+        joined.dps_ordinary.isna()
+        | joined.dps_preferred.isna()
+        | (joined.dps_ordinary != joined.dps_preferred)
+    ]
+    return {"dates": len(joined), "mismatches": len(mismatches), "consistent": mismatches.empty}
+
+
+def resolve_external_sources(con) -> dict:
+    """Record concrete official resolutions; Brent is a futures proxy, not spot oil."""
+    rows = [
+        ("cbr_usd_rub", "FX", "Bank of Russia", "https://www.cbr.ru/scripts/XML_dynamic.asp", "official public XML interface", "free", "effective date 00:00 Moscow", "validated", "loaded", "official rate; not market close"),
+        ("cbr_eur_rub", "FX", "Bank of Russia", "https://www.cbr.ru/scripts/XML_dynamic.asp", "official public XML interface", "free", "effective date 00:00 Moscow", "validated", "loaded", "official rate; not market close"),
+        ("cbr_cny_rub", "FX", "Bank of Russia", "https://www.cbr.ru/scripts/XML_dynamic.asp", "official public XML interface", "free", "effective date 00:00 Moscow", "validated", "loaded", "official rate; not market close"),
+        ("brent_moex_futures", "oil", "Moscow Exchange", "https://iss.moex.com/iss/history/engines/futures/markets/forts/securities", "official ISS public interface; redistribution terms require separate verification", "free", "MOEX trading date", "proxy_only", "resolved_not_loaded", "USD per barrel futures; never labelled spot Brent or Urals"),
+        ("urals", "oil", "none validated", "", "unresolved", "paid/restricted", "unknown", "missing", "requires_paid_data", "no safe free PIT daily source proven"),
+        ("fertilizer_proxy", "commodity", "none validated", "", "unresolved", "paid/restricted", "unknown", "missing", "requires_paid_data", "no safe free PIT daily source proven"),
+    ]
+    con.executemany(
+        """INSERT OR REPLACE INTO external_factor_catalog VALUES
+        (?,?,?,?,?,?,?,?,?,?,current_timestamp)""", rows
+    )
+    return {"resolved": 4, "paid_restricted": 2, "brent_status": "official_moex_futures_proxy_not_spot"}
+
+
 def backfill_futures_specifications(con, client: MoexClient | None = None) -> dict:
     ensure_schema(con)
     client = client or MoexClient()
@@ -386,7 +415,8 @@ def backfill_external_and_contracts(con) -> dict:
     }
     ensure_schema(con)
     result = {"fx": backfill_official_fx(con), "dividends": backfill_portfolio_dividends(con),
-              "futures": backfill_futures_specifications(con)}
+              "futures": backfill_futures_specifications(con),
+              "source_resolution": resolve_external_sources(con)}
     after = {
         "fx": con.execute("SELECT count(*) FROM macro_observations WHERE series_id IN ('cbr_usd_rub','cbr_eur_rub','cbr_cny_rub')").fetchone()[0],
         "dividends": con.execute("SELECT count(*) FROM dividends").fetchone()[0],

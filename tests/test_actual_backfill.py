@@ -1,11 +1,13 @@
 from datetime import date
 
 import duckdb
+import pandas as pd
 
 from moex_analytics.actual_backfill.core import (
     _block_rows,
     backfill_futures_specifications,
     backfill_universe_pilot,
+    dividend_pair_consistency,
     ensure_schema,
     import_moex_annual_history,
 )
@@ -99,6 +101,9 @@ def test_tradable_on_date_universe_contains_inactive_security(monkeypatch, tmp_p
     result = backfill_universe_pilot(con, UniverseClient(), 1)
     assert result["rows_inserted"] == 1
     assert con.execute("SELECT inactive_at_audit FROM tradable_on_date_universe").fetchone()[0]
+    repeat = backfill_universe_pilot(con, UniverseClient(), 1)
+    assert repeat["rows_inserted"] == 0
+    assert con.execute("SELECT count(*) FROM tradable_on_date_universe").fetchone()[0] == 1
 
 
 def test_official_futures_spec_is_saved_but_basis_not_auto_enabled():
@@ -120,3 +125,13 @@ def test_official_futures_spec_is_saved_but_basis_not_auto_enabled():
 
 def test_block_rows_preserves_official_columns():
     assert _block_rows({"columns": ["A", "B"], "data": [[1, 2]]}) == [{"A": 1, "B": 2}]
+
+
+def test_dividend_pair_consistency_does_not_assume_parity():
+    frame = pd.DataFrame([
+        {"secid": "SBER", "record_date": date(2025, 7, 18), "dps": 34.84},
+        {"secid": "SBERP", "record_date": date(2025, 7, 18), "dps": 34.84},
+        {"secid": "SBER", "record_date": date(2024, 7, 11), "dps": 33.30},
+    ])
+    result = dividend_pair_consistency(frame, "SBER", "SBERP")
+    assert result == {"dates": 2, "mismatches": 1, "consistent": False}

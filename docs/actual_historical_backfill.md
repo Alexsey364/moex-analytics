@@ -17,3 +17,5 @@ The generic SBER history is reused without weakening its existing validation. FI
 ## External factors and contracts
 
 USD/RUB, EUR/RUB and CNY/RUB use the official Bank of Russia XML endpoint with effective-date availability. Dividend history uses MOEX ISS. Futures specification rows retain the official payload hash. Basis remains disabled until spot/futures scale and underlying-unit equivalence are proven.
+
+Official references are the Bank of Russia XML interface (`https://www.cbr.ru/development/SXML/`), MOEX ISS (`https://iss.moex.com/iss`) and the MOEX Brent contract specification. MOEX Brent is accepted only as a futures proxy: it is quoted in USD per barrel and is never relabelled as spot Brent or Urals. Urals and fertilizer series remain paid/restricted until a lawful reproducible PIT source is validated.
