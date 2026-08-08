@@ -10,6 +10,10 @@ from ..models import Observation, SeriesDefinition
 
 MOSCOW = ZoneInfo("Europe/Moscow")
 INSTRUMENTS = {
+    "moex_imoex": ("IMOEX", "stock", "index", "SNDX", "MOEX Russia Index"),
+    "moex_rtsi": ("RTSI", "stock", "index", "RTSI", "RTS Index"),
+    "moex_rvi": ("RVI", "stock", "index", "RTSI", "Russian volatility index"),
+    "moex_rusfar": ("RUSFAR", "stock", "index", "MMIX", "RUSFAR money-market index"),
     "moex_cny_rub": ("CNYRUB_TOM", "currency", "selt", "CETS", "Market CNY/RUB"),
     "moex_usd_rub": ("USDRUB_TOM", "currency", "selt", "CETS", "Market USD/RUB"),
     "moex_rgbi": ("RGBI", "stock", "index", "SNDX", "Government bond price index"),

@@ -3,6 +3,7 @@ from datetime import date
 import duckdb
 
 from moex_analytics.actual_backfill.schema import DDL
+from moex_analytics.macro.sources.moex import INSTRUMENTS
 from moex_analytics.market_history import build_trading_statistics, eligible_universe
 
 
@@ -26,6 +27,13 @@ def test_eligible_universe_excludes_funds_and_technical_rows():
         ],
     )
     assert eligible_universe(con) == ["SBER", "SBERP"]
+
+
+def test_official_index_boards_and_market_fx_are_explicit():
+    assert INSTRUMENTS["moex_imoex"][:4] == ("IMOEX", "stock", "index", "SNDX")
+    assert INSTRUMENTS["moex_rusfar"][:4] == ("RUSFAR", "stock", "index", "MMIX")
+    assert INSTRUMENTS["moex_usd_rub"][1:4] == ("currency", "selt", "CETS")
+    assert not any(series.startswith("cbr_") for series in INSTRUMENTS)
 
 
 def test_statistics_use_one_explicit_board_chain_and_are_point_in_time():

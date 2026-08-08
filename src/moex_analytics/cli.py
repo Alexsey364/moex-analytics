@@ -457,6 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
     market_batch.add_argument("--pages-per-job", type=int)
     sub.add_parser("build-trading-statistics")
     sub.add_parser("market-history-status")
+    sub.add_parser("backfill-official-market-series")
     for name in (
         "validate-portfolio-alpha",
         "validate-cross-instrument-factors",
@@ -1209,6 +1210,7 @@ def main() -> None:
         "backfill-market-history",
         "build-trading-statistics",
         "market-history-status",
+        "backfill-official-market-series",
     }:
         from . import market_history
 
@@ -1220,6 +1222,8 @@ def main() -> None:
                 result = market_history.run_batch(con, jobs=args.jobs, pages_per_job=args.pages_per_job)
             elif args.command == "build-trading-statistics":
                 result = market_history.build_trading_statistics(con)
+            elif args.command == "backfill-official-market-series":
+                result = market_history.backfill_official_market_series(con)
             else:
                 result = market_history.coverage(con, save=True)
             print(result)

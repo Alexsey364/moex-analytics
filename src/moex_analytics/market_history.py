@@ -7,7 +7,7 @@ import hashlib
 import json
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from .actual_backfill.schema import DDL
 from .config import PROJECT_ROOT
@@ -317,4 +317,33 @@ def coverage(con, *, save=False) -> dict:
             "INSERT INTO stage21_coverage_snapshots VALUES (?,current_timestamp,?,?,?,?,?,?,?,?,?,?)",
             [uuid.uuid4().hex[:20], *result.values(), json.dumps(result, default=str)],
         )
+    return result
+
+
+def backfill_official_market_series(
+    con, date_from: date = date(1995, 1, 1), date_to: date | None = None
+) -> dict:
+    """Load official indices and traded FX without merging them with CBR fixing."""
+    from .macro.repository import upsert_observations, upsert_series
+    from .macro.sources import moex
+
+    date_to = date_to or date.today()
+    upsert_series(con, moex.definitions())
+    result = {}
+    for series_id in moex.INSTRUMENTS:
+        latest = con.execute(
+            "SELECT max(observation_date) FROM macro_observations WHERE series_id=?",
+            [series_id],
+        ).fetchone()[0]
+        resume_from = max(date_from, latest - timedelta(days=7)) if latest else date_from
+        rows = moex.download(series_id, str(resume_from), str(date_to))
+        inserted = upsert_observations(con, rows)
+        result[series_id] = {
+            "received": len(rows),
+            "inserted": inserted,
+            "date_from": min((row.observation_date for row in rows), default=None),
+            "date_to": max((row.observation_date for row in rows), default=None),
+            "kind": "traded_exchange_series" if "rub" in series_id else "official_index",
+            "resume_from": resume_from,
+        }
     return result
