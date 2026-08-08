@@ -35,6 +35,7 @@ from moex_analytics.dashboard.pages import (
     deep_backfill,
     forecast_scorecard,
     fundamentals,
+    historical_data,
     human_portfolio,
     instrument,
     macro,
@@ -82,6 +83,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Покрытие исторических данных": historical_data.render_advanced,
     "Model Track Record": forecast_scorecard.render_track_record,
     "Company Valuation": portfolio_research.render_company_valuation,
     "Regime Risk": portfolio_research.render_regime_risk_v15,
@@ -230,6 +232,7 @@ basic_pages = {
     "Сценарии": human_portfolio.render_scenarios,
     "Обновить данные": human_portfolio.render_update,
     "История обновлений": forecast_scorecard.render_update_history,
+    "Качество данных": historical_data.render_basic,
 }
 advanced = st.sidebar.toggle("Расширенный режим", value=False)
 if advanced:

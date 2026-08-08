@@ -361,6 +361,22 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         sub.add_parser(name)
     for name in (
+        "audit-historical-data-coverage",
+        "backfill-issuer-fundamentals",
+        "backfill-historical-universe",
+        "backfill-sector-history",
+        "backfill-external-factors",
+        "backfill-futures",
+        "audit-options-history",
+        "audit-corporate-actions",
+        "audit-dividends",
+        "calculate-pit-integrity",
+        "run-data-value-ablation",
+        "historical-data-status",
+        "complete-historical-data-audit",
+    ):
+        sub.add_parser(name)
+    for name in (
         "build-modular-sber-samples",
         "validate-sber-futures-specs",
         "calculate-sber-futures-basis",
@@ -975,6 +991,41 @@ def main() -> None:
                 "rerun-deep-ablation": deep.rerun_deep_ablation,
                 "sber-model-readiness": deep.model_readiness,
                 "complete-sber-deep-backfill": deep.complete_deep_backfill,
+            }
+            print(actions[args.command](con))
+    elif args.command in {
+        "audit-historical-data-coverage",
+        "backfill-issuer-fundamentals",
+        "backfill-historical-universe",
+        "backfill-sector-history",
+        "backfill-external-factors",
+        "backfill-futures",
+        "audit-options-history",
+        "audit-corporate-actions",
+        "audit-dividends",
+        "calculate-pit-integrity",
+        "run-data-value-ablation",
+        "historical-data-status",
+        "complete-historical-data-audit",
+    }:
+        from .historical_data import core as historical
+
+        init_database()
+        with connection() as con:
+            actions = {
+                "audit-historical-data-coverage": historical.build_coverage_matrix,
+                "backfill-issuer-fundamentals": historical.backfill_issuer_fundamentals,
+                "backfill-historical-universe": historical.backfill_historical_universe,
+                "backfill-sector-history": historical.backfill_sector_history,
+                "backfill-external-factors": historical.backfill_external_factors,
+                "backfill-futures": historical.backfill_futures,
+                "audit-options-history": historical.audit_options_history,
+                "audit-corporate-actions": historical.audit_corporate_actions,
+                "audit-dividends": historical.audit_dividends,
+                "calculate-pit-integrity": historical.calculate_pit_integrity,
+                "run-data-value-ablation": historical.run_data_value_ablation,
+                "historical-data-status": historical.historical_data_status,
+                "complete-historical-data-audit": historical.complete_historical_data_audit,
             }
             print(actions[args.command](con))
     elif args.command in {
