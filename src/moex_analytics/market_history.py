@@ -267,10 +267,31 @@ def build_trading_statistics(con) -> dict:
        stddev_samp(close/lag_close-1),sum(value),sum(value) filter(where close>lag_close),
        sum(value) filter(where close<lag_close),current_timestamp FROM
        (SELECT x.*,lag(close) over(PARTITION BY secid ORDER BY trade_date) lag_close FROM x) q GROUP BY trade_date""")
+    con.execute("DELETE FROM market_state_daily")
+    con.execute("""INSERT INTO market_state_daily
+      WITH raw AS (SELECT *,
+       (advancing-declining)::DOUBLE/nullif(tradable_count,0) breadth,
+       (advancing_turnover-declining_turnover)/nullif(total_turnover,0) risk_appetite,
+       (above_sma50::DOUBLE/nullif(tradable_count,0)-.5)*2 trend,
+       -return_dispersion dispersion,ln(nullif(total_turnover,0)) liquidity
+       FROM market_breadth_daily),
+      scores AS (SELECT *,
+       (breadth-avg(breadth) over w)/nullif(stddev_samp(breadth) over w,0) b_score,
+       (liquidity-avg(liquidity) over w)/nullif(stddev_samp(liquidity) over w,0) l_score,
+       (dispersion-avg(dispersion) over w)/nullif(stddev_samp(dispersion) over w,0) v_score
+       FROM raw WINDOW w AS (ORDER BY trade_date ROWS BETWEEN 249 PRECEDING AND 1 PRECEDING))
+      SELECT trade_date,b_score,l_score,v_score,dispersion,trend,risk_appetite,
+       CASE WHEN coalesce(b_score,0)>.5 AND trend>.2 THEN 'broad_risk_on'
+            WHEN coalesce(b_score,0)<-.5 AND trend<-.2 THEN 'broad_risk_off'
+            WHEN dispersion<-.03 THEN 'high_dispersion' ELSE 'mixed' END,
+       json_object('breadth',breadth,'advancing',advancing,'declining',declining,
+        'turnover',total_turnover,'trend',trend,'risk_appetite',risk_appetite),current_timestamp
+      FROM scores""")
     return {
         "boards": con.execute("SELECT count(*) FROM equity_board_history").fetchone()[0],
         "liquidity_rows": con.execute("SELECT count(*) FROM equity_liquidity_daily").fetchone()[0],
         "breadth_days": con.execute("SELECT count(*) FROM market_breadth_daily").fetchone()[0],
+        "market_state_days": con.execute("SELECT count(*) FROM market_state_daily").fetchone()[0],
     }
 
 

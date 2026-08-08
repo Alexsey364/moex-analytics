@@ -82,7 +82,12 @@ def test_statistics_use_one_explicit_board_chain_and_are_point_in_time():
         )
     con.executemany("INSERT INTO moex_equity_eod VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
     result = build_trading_statistics(con)
-    assert result == {"boards": 2, "liquidity_rows": 2, "breadth_days": 2}
+    assert result == {
+        "boards": 2,
+        "liquidity_rows": 2,
+        "breadth_days": 2,
+        "market_state_days": 2,
+    }
     selected = con.execute("SELECT boardid FROM equity_board_history WHERE selected_for_chain").fetchone()[0]
     assert selected == "TQBR"
     assert (

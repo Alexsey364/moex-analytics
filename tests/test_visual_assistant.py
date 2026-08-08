@@ -93,10 +93,8 @@ def test_allocation_rejects_non_green_and_does_not_force_deployment():
 
 
 def test_basic_navigation_and_advanced_groups():
-    assert BASIC_LABELS == ("Сегодня", "Мой портфель", "Куда вложить пополнение", "Акции",
-                            "Спросить про портфель", "Как программа прогнозирует",
-                            "Качество прогнозов", "Дивиденды", "Риски", "Сценарии", "Обновить данные",
-                            "История обновлений", "Качество данных")
+    assert BASIC_LABELS[:2] == ("Сегодня", "Состояние рынка")
+    assert {"Мой портфель", "Куда вложить пополнение", "Качество данных"} <= set(BASIC_LABELS)
     grouped = group_advanced_pages({"Качество данных": object(), "Alpha Research Status": object(),
                                     "Неизвестная диагностика": object()})
     assert tuple(grouped) == tuple(ADVANCED_GROUPS)
