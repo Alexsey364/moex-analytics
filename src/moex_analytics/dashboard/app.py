@@ -41,6 +41,7 @@ from moex_analytics.dashboard.pages import (
     human_portfolio,
     instrument,
     macro,
+    market_memory,
     methodology,
     model_tournament,
     overview,
@@ -88,6 +89,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Историческая память рынка": market_memory.render,
     "Feature Performance Memory": feature_learning.render,
     "Турнир моделей": model_tournament.render,
     "Decision Trace": transparency.render_trace,

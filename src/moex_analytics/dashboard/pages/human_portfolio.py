@@ -135,19 +135,19 @@ def _loads(value):
 
 def _human_table(frame):
     columns = {
-            "Статус": frame.visual_status.map(status_label),
-            "Акция": frame.secid,
-            "Цена": frame.current_price.map(_money),
-            "Мой вес": frame.equity_weight.map(_pct),
-            "1–5 дней": frame.short_term_view.map(horizon_label),
-            "1 месяц": frame.medium_term_view.map(horizon_label),
-            "3–12 месяцев": frame.long_term_view.map(horizon_label),
-            "Дивиденд": frame.dividend_view,
-            "Риск": frame.risk_view,
-            "Уверенность": frame.confidence_label.map(confidence_dots),
-            "Изменилось": frame.status_change,
-            "Действие": frame.visual_status.map(lambda value: STATUS[value][1]),
-        }
+        "Статус": frame.visual_status.map(status_label),
+        "Акция": frame.secid,
+        "Цена": frame.current_price.map(_money),
+        "Мой вес": frame.equity_weight.map(_pct),
+        "1–5 дней": frame.short_term_view.map(horizon_label),
+        "1 месяц": frame.medium_term_view.map(horizon_label),
+        "3–12 месяцев": frame.long_term_view.map(horizon_label),
+        "Дивиденд": frame.dividend_view,
+        "Риск": frame.risk_view,
+        "Уверенность": frame.confidence_label.map(confidence_dots),
+        "Изменилось": frame.status_change,
+        "Действие": frame.visual_status.map(lambda value: STATUS[value][1]),
+    }
     if "investment_view" in frame:
         columns["Инвестиционная оценка"] = frame.investment_view
         columns["Портфельное ограничение"] = frame.allocation_view
@@ -158,9 +158,7 @@ def _add_decision_views(frame):
     result = frame.copy()
     with connection(read_only=False) as con:
         traces = {secid: explain_current_decision(con, secid) for secid in result.secid}
-    result["investment_view"] = result.secid.map(
-        lambda secid: traces[secid]["investment_view"]["label"]
-    )
+    result["investment_view"] = result.secid.map(lambda secid: traces[secid]["investment_view"]["label"])
     result["allocation_view"] = result.secid.map(
         lambda secid: traces[secid]["portfolio_allocation_view"]["label"]
     )
@@ -510,6 +508,9 @@ def render_stocks():
         return
     secid = st.selectbox("Выберите акцию", frame.secid.tolist())
     _company_card(frame[frame.secid == secid].iloc[0], report.report_id)
+    from moex_analytics.dashboard.pages.market_memory import render_basic_analogs
+
+    render_basic_analogs(secid)
 
 
 def render_ask():
