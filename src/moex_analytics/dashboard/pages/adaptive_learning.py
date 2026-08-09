@@ -4,6 +4,7 @@ import streamlit as st
 
 from moex_analytics.adaptive_learning.core import ensure_schema
 from moex_analytics.database import connection
+from moex_analytics.model_tournament.core import ensure_schema as ensure_tournament_schema
 
 
 def _query(sql, params=None):
@@ -80,6 +81,23 @@ def render_basic() -> None:
         "Исследовательские модели есть, но ни одна пока не прошла критерии "
         "для публикации числовой вероятности."
     )
+    with connection(read_only=False) as con:
+        ensure_tournament_schema(con)
+        tournament = con.execute(
+            """SELECT count(*) total,
+            count(*) FILTER (WHERE winner<>'unconditional') winners
+            FROM tournament_leaderboard WHERE run_id=(
+              SELECT run_id FROM tournament_runs WHERE status='completed'
+              ORDER BY created_at DESC LIMIT 1)"""
+        ).fetchone()
+    if tournament and tournament[0]:
+        if tournament[1]:
+            st.info(
+                f"Лучшая исследовательская модель прошла строгий tournament gate "
+                f"для {tournament[1]} из {tournament[0]} комбинаций. Это только shadow evidence."
+            )
+        else:
+            st.warning("Ни одна модель пока надёжно не превосходит простой baseline.")
     cards = _query("""WITH latest AS (
         SELECT run_id FROM adaptive_research_runs ORDER BY created_at DESC LIMIT 1)
         SELECT secid,horizon,model,observations,balanced_accuracy,

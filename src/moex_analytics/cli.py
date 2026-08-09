@@ -468,6 +468,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("rebuild-breadth-after-backfill")
     sub.add_parser("research-predictive-models")
     sub.add_parser("predictive-learning-status")
+    sub.add_parser("run-model-tournament")
+    sub.add_parser("model-tournament-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -577,6 +579,17 @@ def main() -> None:
                 research_predictive_models(con)
                 if args.command == "research-predictive-models"
                 else research_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"run-model-tournament", "model-tournament-status"}:
+        from .model_tournament import run_tournament, tournament_status
+
+        init_database()
+        with connection() as con:
+            result = (
+                run_tournament(con)
+                if args.command == "run-model-tournament"
+                else tournament_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {

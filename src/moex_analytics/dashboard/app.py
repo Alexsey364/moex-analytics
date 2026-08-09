@@ -41,6 +41,7 @@ from moex_analytics.dashboard.pages import (
     instrument,
     macro,
     methodology,
+    model_tournament,
     overview,
     portfolio_research,
     predictive_foundation,
@@ -86,6 +87,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Турнир моделей": model_tournament.render,
     "Decision Trace": transparency.render_trace,
     "Data Inventory": transparency.render_data,
     "Обучение моделей": adaptive_learning.render_advanced,
