@@ -81,12 +81,14 @@ def test_daily_report_schema_is_immutable():
 
 def test_launchers_are_safe_and_human_friendly():
     daily = Path("run_daily_analysis.bat").read_text(encoding="utf-8")
-    launcher = Path("START_MOEX_ANALYTICS.bat").read_text(encoding="utf-8")
-    assert "quick-daily-update" in daily
-    assert "dashboard.launcher" in launcher
+    batch = Path("START_MOEX_ANALYTICS.bat").read_text(encoding="utf-8")
+    launcher = Path("src/moex_analytics/launcher.py").read_text(encoding="utf-8")
+    assert "moex_analytics.launcher --daily-only" in daily
+    assert '"quick-daily-update"' in launcher
+    assert "port_launcher" in launcher
     assert "http://localhost:8501" in launcher
-    assert "taskkill" not in launcher.lower()
-    assert launcher.index("moex_analytics.cli dashboard") < launcher.index("run_daily_analysis.bat")
+    assert "taskkill" not in batch.lower() and "taskkill" not in launcher.lower()
+    assert batch.index("check_runtime_dependencies.py") < batch.index("moex_analytics.launcher")
 
 
 def test_production_sber_engine_is_not_imported():

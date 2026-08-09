@@ -95,6 +95,8 @@ def test_retrain_is_suggestion_not_automatic_action():
 
 
 def test_launcher_defaults_to_quick_update():
-    text = open("run_daily_analysis.bat", encoding="utf-8").read()
-    assert "quick-daily-update" in text
-    assert "deep-update" not in text and "model-research" not in text
+    batch = open("run_daily_analysis.bat", encoding="utf-8").read()
+    launcher = open("src/moex_analytics/launcher.py", encoding="utf-8").read()
+    assert "moex_analytics.launcher --daily-only" in batch
+    assert '"quick-daily-update"' in launcher
+    assert "deep-update" not in launcher and "model-research" not in launcher

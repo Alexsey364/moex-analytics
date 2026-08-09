@@ -89,12 +89,13 @@ def test_current_environment_has_all_required_runtime_dependencies():
 
 
 def test_launchers_run_preflight_before_dashboard():
-    for launcher in (Path("START_MOEX_ANALYTICS.bat"), Path("start_dashboard.bat")):
-        content = launcher.read_text(encoding="utf-8")
-        preflight = content.index("scripts\\check_runtime_dependencies.py")
-        dashboard = content.index("moex_analytics.dashboard.launcher")
-        assert preflight < dashboard
-        assert "chcp 65001" in content
+    content = Path("START_MOEX_ANALYTICS.bat").read_text(encoding="utf-8")
+    preflight = content.index("scripts\\check_runtime_dependencies.py")
+    launcher = content.index("moex_analytics.launcher")
+    assert preflight < launcher
+    assert "py -3.12 -m venv" in content
+    assert 'set "PYTHON_EXE=' in content
+    assert "(" not in "\n".join(line for line in content.splitlines() if not line.lstrip().startswith('"'))
 
 
 def test_pyproject_declares_every_required_distribution():
