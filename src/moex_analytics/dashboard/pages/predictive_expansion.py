@@ -44,6 +44,22 @@ def render() -> None:
         cols[2].metric("EOD наблюдения", f"403 923 → {eod:,}".replace(",", " "))
         cols[3].metric("Прогресс к 1000", f"{min(securities / 1000, 1):.0%}")
         st.progress(min(float(securities) / 1000, 1.0))
+        if table_exists(con, "historical_quality_v2"):
+            eligible = _scalar(
+                con, "SELECT count(*) FROM historical_quality_v2 WHERE training_tier IN ('A','B')"
+            )
+            resolved = _scalar(
+                con,
+                """SELECT count(*) FROM corporate_action_candidate_episodes
+                WHERE review_status='auto_validated'""",
+            )
+            unresolved = _scalar(
+                con,
+                """SELECT count(*) FROM corporate_action_candidate_episodes
+                WHERE review_status!='auto_validated'""",
+            )
+            st.write(f"Качественно пригодны для обучения: **{eligible}**")
+            st.write(f"Корпоративные действия: **{resolved} resolved / {unresolved} unresolved**")
         st.write({"validated fundamentals": fundamentals, "fundamental periods": periods,
                   "dividends": dividends, "futures": futures, "context features": context})
         if table_exists(con, "stage30_context_coverage"):

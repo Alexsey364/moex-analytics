@@ -497,6 +497,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("predictive-research-status")
     predictive_run = sub.add_parser("run-predictive-data-expansion")
     predictive_run.add_argument("--target", type=int)
+    sub.add_parser("resolve-corporate-actions")
+    sub.add_parser("corporate-action-quality-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -748,6 +750,17 @@ def main() -> None:
         init_database()
         with connection() as con:
             result = run_predictive_data_expansion(con, target=args.target, progress=print)
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"resolve-corporate-actions", "corporate-action-quality-status"}:
+        from .training_quality import build_corporate_action_quality, corporate_action_status
+
+        init_database()
+        with connection() as con:
+            result = (
+                build_corporate_action_quality(con)
+                if args.command == "resolve-corporate-actions"
+                else corporate_action_status(con)
+            )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
         "data-inventory",

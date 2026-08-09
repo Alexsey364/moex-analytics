@@ -55,6 +55,7 @@ from moex_analytics.dashboard.pages import (
     sber_intelligence,
     sber_operational,
     trading_statistics,
+    training_quality,
     transparency,
     unblocked_experiment,
     uncertainty,
@@ -94,6 +95,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Корпоративные действия и качество цен": training_quality.render_corporate_actions,
     "Controlled Self-Learning Loop": learning_cycle.render_advanced,
     "Portfolio-aware learning": portfolio_learning.render,
     "Meta confidence и abstention": meta_learning.render,
