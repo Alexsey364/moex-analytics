@@ -42,6 +42,7 @@ from moex_analytics.dashboard.pages import (
     instrument,
     macro,
     market_memory,
+    meta_learning,
     methodology,
     model_tournament,
     overview,
@@ -90,6 +91,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Meta confidence и abstention": meta_learning.render,
     "Калибровка и неопределённость": uncertainty.render,
     "Историческая память рынка": market_memory.render,
     "Feature Performance Memory": feature_learning.render,

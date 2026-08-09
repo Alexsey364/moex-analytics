@@ -476,6 +476,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("market-memory-status")
     sub.add_parser("run-calibration-audit")
     sub.add_parser("calibration-status")
+    sub.add_parser("run-meta-learning")
+    sub.add_parser("meta-learning-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -623,6 +625,15 @@ def main() -> None:
                 run_calibration_audit(con)
                 if args.command == "run-calibration-audit"
                 else calibration_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"run-meta-learning", "meta-learning-status"}:
+        from .meta_learning import meta_learning_status, run_meta_learning
+
+        init_database()
+        with connection() as con:
+            result = (
+                run_meta_learning(con) if args.command == "run-meta-learning" else meta_learning_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
