@@ -19,6 +19,7 @@ from .config import load_instruments, load_segments, load_settings
 from .data_quality import record_issues
 from .database import (
     connection,
+    database_path,
     finish_load,
     init_database,
     insert_daily_prices,
@@ -467,6 +468,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("rebuild-breadth-after-backfill")
     sub.add_parser("research-predictive-models")
     sub.add_parser("predictive-learning-status")
+    sub.add_parser("data-inventory")
+    receipt = sub.add_parser("update-receipt")
+    receipt.add_argument("--update-id")
+    for command_name in (
+        "decision-trace",
+        "instrument-data-passport",
+        "explain-current-decision",
+    ):
+        transparency_command = sub.add_parser(command_name)
+        transparency_command.add_argument("secid")
     for name in (
         "validate-portfolio-alpha",
         "validate-cross-instrument-factors",
@@ -567,7 +578,35 @@ def main() -> None:
                 if args.command == "research-predictive-models"
                 else research_status(con)
             )
-            print(result)
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {
+        "data-inventory",
+        "update-receipt",
+        "decision-trace",
+        "instrument-data-passport",
+        "explain-current-decision",
+    }:
+        from .transparency import (
+            build_decision_trace,
+            data_inventory,
+            explain_current_decision,
+            instrument_data_passport,
+            update_receipt,
+        )
+
+        init_database()
+        with connection() as con:
+            if args.command == "data-inventory":
+                result = data_inventory(con, database_path(), save=True)
+            elif args.command == "update-receipt":
+                result = update_receipt(con, args.update_id)
+            elif args.command == "decision-trace":
+                result = build_decision_trace(con, args.secid)
+            elif args.command == "instrument-data-passport":
+                result = instrument_data_passport(con, args.secid)
+            else:
+                result = explain_current_decision(con, args.secid)
+            print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
         "calculate-features",
         "calculate-regimes",

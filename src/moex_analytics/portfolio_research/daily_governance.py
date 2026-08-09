@@ -1,4 +1,5 @@
 """Incremental daily orchestration and explicit model governance."""
+
 from __future__ import annotations
 
 import json
@@ -43,8 +44,11 @@ def ensure_schema(con):
 
 def incremental_range(last_observation, today=None, overlap_days=5):
     today = today or date.today()
-    return (None, today) if last_observation is None else (
-        last_observation - timedelta(days=overlap_days), today)
+    return (
+        (None, today)
+        if last_observation is None
+        else (last_observation - timedelta(days=overlap_days), today)
+    )
 
 
 def _latest(con):
@@ -55,24 +59,56 @@ def _latest(con):
 
 
 def _source(dataset):
-    return {"prices": "MOEX ISS", "macro": "CBR/MOEX", "fundamentals": "issuer disclosures",
-            "dividends_events": "MOEX/issuer", "regimes": "local", "portfolio": "local",
-            "forecasts": "local immutable report", "forecast_evaluation": "local prices"}[dataset]
+    return {
+        "prices": "MOEX ISS",
+        "macro": "CBR/MOEX",
+        "fundamentals": "issuer disclosures",
+        "dividends_events": "MOEX/issuer",
+        "regimes": "local",
+        "portfolio": "local",
+        "forecasts": "local immutable report",
+        "forecast_evaluation": "local prices",
+    }[dataset]
 
 
-def _finish(con, run_id, started, sources, requests, rows, errors, forecasts, matured,
-            status, no_change, details):
+def _finish(
+    con, run_id, started, sources, requests, rows, errors, forecasts, matured, status, no_change, details
+):
     duration = time.perf_counter() - started
     con.execute(
         "UPDATE daily_update_runs SET finished_at=current_timestamp,duration_seconds=?,sources_checked=?,"
         "http_requests=?,rows_inserted=?,rows_revised=0,errors=?,new_forecasts=?,matured_forecasts=?,"
         "status=?,no_change=?,details_json=? WHERE run_id=?",
-        [duration, sources, requests, rows, errors, forecasts, matured, status, no_change,
-         json.dumps(details, ensure_ascii=False), run_id])
-    return {"run_id": run_id, "duration_seconds": duration, "sources_checked": sources,
-            "http_requests": requests, "rows_inserted": rows, "errors": errors,
-            "new_forecasts": forecasts, "matured_forecasts": matured, "status": status,
-            "no_change": no_change, **details}
+        [
+            duration,
+            sources,
+            requests,
+            rows,
+            errors,
+            forecasts,
+            matured,
+            status,
+            no_change,
+            json.dumps(details, ensure_ascii=False),
+            run_id,
+        ],
+    )
+    from moex_analytics.transparency import update_receipt
+
+    update_receipt(con, run_id)
+    return {
+        "run_id": run_id,
+        "duration_seconds": duration,
+        "sources_checked": sources,
+        "http_requests": requests,
+        "rows_inserted": rows,
+        "errors": errors,
+        "new_forecasts": forecasts,
+        "matured_forecasts": matured,
+        "status": status,
+        "no_change": no_change,
+        **details,
+    }
 
 
 def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=None):
@@ -81,20 +117,42 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
         raise ValueError(f"unknown update mode: {mode}")
     ensure_schema(con)
     now, run_id, started = now or datetime.now(), uuid.uuid4().hex[:20], time.perf_counter()
-    con.execute("INSERT INTO daily_update_runs(run_id,update_type,started_at,status,no_change) "
-                "VALUES (?,?,?,'running',FALSE)", [run_id, mode, now])
+    con.execute(
+        "INSERT INTO daily_update_runs(run_id,update_type,started_at,status,no_change) "
+        "VALUES (?,?,?,'running',FALSE)",
+        [run_id, mode, now],
+    )
     if mode == "retrain":
-        details = {"dry_run": dry_run, "planned": ["alpha research", "nested CV", "challengers"],
-                   "promotion": "blocked_without_explicit_approval"}
+        details = {
+            "dry_run": dry_run,
+            "planned": ["alpha research", "nested CV", "challengers"],
+            "promotion": "blocked_without_explicit_approval",
+        }
         return _finish(con, run_id, started, 0, 0, 0, 0, 0, 0, "dry_run", True, details)
     if mode == "deep" and dry_run:
-        details = {"dry_run": True, "planned": ["issuer discovery", "missing documents",
-                   "quality audits", "feature rebuild", "historical checks"]}
+        details = {
+            "dry_run": True,
+            "planned": [
+                "issuer discovery",
+                "missing documents",
+                "quality audits",
+                "feature rebuild",
+                "historical checks",
+            ],
+        }
         return _finish(con, run_id, started, 5, 0, 0, 0, 0, 0, "dry_run", True, details)
     latest = _latest(con)
     start_date, end_date = incremental_range(latest, now.date(), 5)
-    datasets = ["prices", "macro", "fundamentals", "dividends_events", "regimes", "portfolio",
-                "forecasts", "forecast_evaluation"]
+    datasets = [
+        "prices",
+        "macro",
+        "fundamentals",
+        "dividends_events",
+        "regimes",
+        "portfolio",
+        "forecasts",
+        "forecast_evaluation",
+    ]
     total_requests = total_rows = errors = new_forecasts = matured = 0
     results, market_changed = [], False
     for number, dataset in enumerate(datasets, 1):
@@ -105,14 +163,17 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
             if dataset == "prices":
                 if latest is None or (now.date() - latest).days > 3:
                     from .core import build_portfolio_total_returns, download_portfolio_history
+
                     before = con.execute("SELECT count(*) FROM canonical_daily_prices").fetchone()[0]
-                    download_portfolio_history(con); build_portfolio_total_returns(con)
+                    download_portfolio_history(con)
+                    build_portfolio_total_returns(con)
                     after = con.execute("SELECT count(*) FROM canonical_daily_prices").fetchone()[0]
                     rows, requests, status, market_changed = after - before, 1, "completed", after > before
                 else:
                     status = "no_new_logical_cutoff"
             elif dataset == "forecasts":
                 from .forecast_scorecards import capture_daily_forecasts
+
                 result = capture_daily_forecasts(con)
                 new_forecasts, status = result["inserted"], result["status"]
             elif dataset == "forecast_evaluation":
@@ -121,95 +182,178 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
                     build_learning_journal,
                     evaluate_matured_forecasts,
                 )
-                result = evaluate_matured_forecasts(con); matured = result["matured"]
-                build_forecast_scorecards(con); build_learning_journal(con)
+
+                result = evaluate_matured_forecasts(con)
+                matured = result["matured"]
+                build_forecast_scorecards(con)
+                build_learning_journal(con)
                 build_governance_metrics(con)
                 status = "completed" if matured else "no_change"
             elif market_changed and dataset == "portfolio":
                 from .human_intelligence import run_daily_intelligence
-                run_daily_intelligence(con, update_data=False); status = "completed"
+
+                run_daily_intelligence(con, update_data=False)
+                status = "completed"
             elif mode == "deep":
                 status = "scheduled_deep_component"
             else:
                 status = "smart_skip_unchanged_input"
         except Exception as exc:
-            errors += 1; status = "failed_using_previous_snapshot"
+            errors += 1
+            status = "failed_using_previous_snapshot"
             error = f"{type(exc).__name__}: {exc}"
         duration = time.perf_counter() - began
-        con.execute("INSERT INTO daily_update_requests VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    [run_id, number, dataset, _source(dataset), start_date, end_date, 5, requests,
-                     rows, 0, status, error, duration])
-        con.execute("INSERT OR REPLACE INTO dataset_update_state VALUES (?, ?,current_timestamp,?,"
-                    "'daily',?,'incremental_with_revision_overlap',?,?,?,?,?)",
-                    [dataset, latest, now + timedelta(days=1), _source(dataset), status, rows,
-                     requests, duration, error])
-        total_requests += requests; total_rows += rows
-        results.append({"step": number, "dataset": dataset, "status": status, "rows": rows,
-                        "requests": requests, "error": error})
+        con.execute(
+            "INSERT INTO daily_update_requests VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                run_id,
+                number,
+                dataset,
+                _source(dataset),
+                start_date,
+                end_date,
+                5,
+                requests,
+                rows,
+                0,
+                status,
+                error,
+                duration,
+            ],
+        )
+        con.execute(
+            "INSERT OR REPLACE INTO dataset_update_state VALUES (?, ?,current_timestamp,?,"
+            "'daily',?,'incremental_with_revision_overlap',?,?,?,?,?)",
+            [
+                dataset,
+                latest,
+                now + timedelta(days=1),
+                _source(dataset),
+                status,
+                rows,
+                requests,
+                duration,
+                error,
+            ],
+        )
+        total_requests += requests
+        total_rows += rows
+        results.append(
+            {
+                "step": number,
+                "dataset": dataset,
+                "status": status,
+                "rows": rows,
+                "requests": requests,
+                "error": error,
+            }
+        )
     no_change = total_rows == 0 and new_forecasts == 0 and matured == 0
     status = "completed_with_warnings" if errors else "no_change" if no_change else "completed"
-    return _finish(con, run_id, started, 8, total_requests, total_rows, errors, new_forecasts,
-                   matured, status, no_change, {"steps": results})
+    return _finish(
+        con,
+        run_id,
+        started,
+        8,
+        total_requests,
+        total_rows,
+        errors,
+        new_forecasts,
+        matured,
+        status,
+        no_change,
+        {"steps": results},
+    )
 
 
-def register_frozen_model(con, *, family, version, feature_version, ranges, config_hash,
-                          code_commit, approval="research"):
+def register_frozen_model(
+    con, *, family, version, feature_version, ranges, config_hash, code_commit, approval="research"
+):
     ensure_schema(con)
-    con.execute("INSERT OR IGNORE INTO model_registry VALUES (?,?,current_timestamp,current_timestamp,"
-                "NULL,?,?,?,?,?,?,?,?,?,TRUE)", [family, version, feature_version,
-                ranges.get("training"), ranges.get("validation"), ranges.get("pseudo_oos"),
-                "insufficient_live_sample", approval, config_hash, code_commit,
-                "Daily update cannot alter features, coefficients, thresholds or calibration"])
+    con.execute(
+        "INSERT OR IGNORE INTO model_registry VALUES (?,?,current_timestamp,current_timestamp,"
+        "NULL,?,?,?,?,?,?,?,?,?,TRUE)",
+        [
+            family,
+            version,
+            feature_version,
+            ranges.get("training"),
+            ranges.get("validation"),
+            ranges.get("pseudo_oos"),
+            "insufficient_live_sample",
+            approval,
+            config_hash,
+            code_commit,
+            "Daily update cannot alter features, coefficients, thresholds or calibration",
+        ],
+    )
     return {"family": family, "version": version, "frozen": True, "approval": approval}
 
 
 def register_challenger(con, family, version):
     ensure_schema(con)
-    con.execute("INSERT OR REPLACE INTO challenger_models VALUES (?,?,'shadow',current_date,0,0,"
-                "FALSE,FALSE,'[\"live sample required\"]',current_timestamp)", [family, version])
+    con.execute(
+        "INSERT OR REPLACE INTO challenger_models VALUES (?,?,'shadow',current_date,0,0,"
+        "FALSE,FALSE,'[\"live sample required\"]',current_timestamp)",
+        [family, version],
+    )
     return {"family": family, "version": version, "status": "shadow", "promotion": False}
 
 
-def promotion_recommendation(*, matured, stable_by_regime, beats_baseline, beats_production,
-                             calibrated, leakage_free, structural_break):
-    checks = {"sufficient_live_sample": matured >= 100, "stable_by_regime": stable_by_regime,
-              "beats_baseline": beats_baseline, "beats_production": beats_production,
-              "calibration_acceptable": calibrated, "no_leakage": leakage_free,
-              "no_structural_break": not structural_break}
+def promotion_recommendation(
+    *, matured, stable_by_regime, beats_baseline, beats_production, calibrated, leakage_free, structural_break
+):
+    checks = {
+        "sufficient_live_sample": matured >= 100,
+        "stable_by_regime": stable_by_regime,
+        "beats_baseline": beats_baseline,
+        "beats_production": beats_production,
+        "calibration_acceptable": calibrated,
+        "no_leakage": leakage_free,
+        "no_structural_break": not structural_break,
+    }
     return {"promote_candidate": all(checks.values()), "automatic_promotion": False, "checks": checks}
 
 
 def population_stability_index(reference, current, bins=10):
     reference, current = np.asarray(reference, float), np.asarray(current, float)
-    if len(reference) < bins or len(current) < bins: return None, "insufficient_sample"
+    if len(reference) < bins or len(current) < bins:
+        return None, "insufficient_sample"
     edges = np.unique(np.quantile(reference, np.linspace(0, 1, bins + 1)))
-    if len(edges) < 3: return 0.0, "stable"
+    if len(edges) < 3:
+        return 0.0, "stable"
     ref = np.histogram(reference, edges)[0] / len(reference)
     cur = np.histogram(current, edges)[0] / len(current)
-    psi = float(np.sum((cur.clip(1e-6) - ref.clip(1e-6)) *
-                       np.log(cur.clip(1e-6) / ref.clip(1e-6))))
-    return psi, "significant_drift" if psi >= .25 else "watch" if psi >= .1 else "stable"
+    psi = float(np.sum((cur.clip(1e-6) - ref.clip(1e-6)) * np.log(cur.clip(1e-6) / ref.clip(1e-6))))
+    return psi, "significant_drift" if psi >= 0.25 else "watch" if psi >= 0.1 else "stable"
 
 
 def concept_drift_status(historical_ic, recent_ic):
-    if historical_ic is None or recent_ic is None: return "insufficient_sample"
-    if historical_ic * recent_ic < 0 or abs(recent_ic - historical_ic) >= .15:
+    if historical_ic is None or recent_ic is None:
+        return "insufficient_sample"
+    if historical_ic * recent_ic < 0 or abs(recent_ic - historical_ic) >= 0.15:
         return "significant_drift"
-    return "watch" if abs(recent_ic - historical_ic) >= .075 else "stable"
+    return "watch" if abs(recent_ic - historical_ic) >= 0.075 else "stable"
 
 
 def degradation_status(recent_hits, historical_hit):
-    if len(recent_hits) < 20: return "insufficient_live_sample"
-    return "model_degradation_warning" if np.mean(recent_hits) < historical_hit - .10 else "stable"
+    if len(recent_hits) < 20:
+        return "insufficient_live_sample"
+    return "model_degradation_warning" if np.mean(recent_hits) < historical_hit - 0.10 else "stable"
 
 
 def retrain_suggestion(*, new_matured, data_drift, concept_drift, degradation, structural_regime):
     reasons = []
-    if new_matured >= 100: reasons.append("достаточно новых зрелых прогнозов")
-    if data_drift == "significant_drift": reasons.append("значимый data drift")
-    if concept_drift == "significant_drift": reasons.append("значимый concept drift")
-    if degradation == "model_degradation_warning": reasons.append("ухудшение live-качества")
-    if structural_regime: reasons.append("новый структурный режим")
+    if new_matured >= 100:
+        reasons.append("достаточно новых зрелых прогнозов")
+    if data_drift == "significant_drift":
+        reasons.append("значимый data drift")
+    if concept_drift == "significant_drift":
+        reasons.append("значимый concept drift")
+    if degradation == "model_degradation_warning":
+        reasons.append("ухудшение live-качества")
+    if structural_regime:
+        reasons.append("новый структурный режим")
     return {"suggest_research_retrain": bool(reasons), "automatic_retrain": False, "reasons": reasons}
 
 
@@ -236,20 +380,34 @@ def build_governance_metrics(con):
             returns = [value for _, value in subset]
             degradation = (
                 degradation_status(hits, historical_hit)
-                if historical_hit is not None else "insufficient_live_sample"
+                if historical_hit is not None
+                else "insufficient_live_sample"
             )
             suggestion = retrain_suggestion(
-                new_matured=len(rows), data_drift="insufficient_sample",
-                concept_drift="insufficient_sample", degradation=degradation,
+                new_matured=len(rows),
+                data_drift="insufficient_sample",
+                concept_drift="insufficient_sample",
+                degradation=degradation,
                 structural_regime=False,
             )
             con.execute(
                 "INSERT INTO model_governance_metrics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,current_timestamp)",
-                [family, version, horizon, label, len(subset),
-                 float(np.mean(hits)) if hits else None, None, None,
-                 float(np.mean(np.abs(returns))) if returns else None, degradation,
-                 "insufficient_sample", "insufficient_sample",
-                 suggestion["suggest_research_retrain"], json.dumps(suggestion["reasons"], ensure_ascii=False)],
+                [
+                    family,
+                    version,
+                    horizon,
+                    label,
+                    len(subset),
+                    float(np.mean(hits)) if hits else None,
+                    None,
+                    None,
+                    float(np.mean(np.abs(returns))) if returns else None,
+                    degradation,
+                    "insufficient_sample",
+                    "insufficient_sample",
+                    suggestion["suggest_research_retrain"],
+                    json.dumps(suggestion["reasons"], ensure_ascii=False),
+                ],
             )
             written += 1
     return {"rolling_metrics": written}
@@ -257,7 +415,9 @@ def build_governance_metrics(con):
 
 def governance_status(con):
     ensure_schema(con)
-    return {"models": con.execute("SELECT count(*) FROM model_registry").fetchone()[0],
-            "frozen": con.execute("SELECT count(*) FROM model_registry WHERE frozen").fetchone()[0],
-            "challengers": con.execute("SELECT count(*) FROM challenger_models").fetchone()[0],
-            "updates": con.execute("SELECT count(*) FROM daily_update_runs").fetchone()[0]}
+    return {
+        "models": con.execute("SELECT count(*) FROM model_registry").fetchone()[0],
+        "frozen": con.execute("SELECT count(*) FROM model_registry WHERE frozen").fetchone()[0],
+        "challengers": con.execute("SELECT count(*) FROM challenger_models").fetchone()[0],
+        "updates": con.execute("SELECT count(*) FROM daily_update_runs").fetchone()[0],
+    }

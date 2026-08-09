@@ -48,6 +48,7 @@ from moex_analytics.dashboard.pages import (
     sber_intelligence,
     sber_operational,
     trading_statistics,
+    transparency,
     unblocked_experiment,
     update_data,
 )
@@ -85,6 +86,8 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Decision Trace": transparency.render_trace,
+    "Data Inventory": transparency.render_data,
     "Обучение моделей": adaptive_learning.render_advanced,
     "Статистика торгов": trading_statistics.render_trading_statistics,
     "Покрытие исторических данных": historical_data.render_advanced,
@@ -225,6 +228,7 @@ advanced_pages = {
 }
 basic_pages = {
     "Сегодня": human_portfolio.render_today,
+    "Мои данные": transparency.render_data,
     "Состояние рынка": trading_statistics.render_market_state,
     "Мой портфель": human_portfolio.render_portfolio,
     "Куда вложить пополнение": human_portfolio.render_allocation,
@@ -236,7 +240,7 @@ basic_pages = {
     "Дивиденды": human_portfolio.render_dividends,
     "Риски": human_portfolio.render_risks,
     "Сценарии": human_portfolio.render_scenarios,
-    "Обновить данные": human_portfolio.render_update,
+    "Обновить данные": transparency.render_update,
     "История обновлений": forecast_scorecard.render_update_history,
     "Качество данных": historical_data.render_basic,
 }

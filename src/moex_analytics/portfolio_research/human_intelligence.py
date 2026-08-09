@@ -501,6 +501,11 @@ def latest_report(con) -> dict:
 
 
 INTENTS = {
+    "Почему SBERP жёлтый?": "trace:SBERP",
+    "Какие данные ты использовал по Лукойлу?": "trace:LKOH",
+    "Почему программа не советует увеличивать MTSS?": "trace:MTSS",
+    "Что мешает X5 стать зелёным?": "trace:X5",
+    "Каких данных не хватает по TATNP?": "trace:TATNP",
     "Что сейчас лучше докупить?": "consider",
     "Что сейчас можно пополнить?": "consider",
     "Что лучше не увеличивать?": "do_not_increase",
@@ -528,6 +533,19 @@ INTENTS = {
 def answer_question(con, question: str) -> dict:
     """Route a supported question to stored results; never generates facts."""
     intent = INTENTS.get(question.strip())
+    if intent and intent.startswith("trace:"):
+        from moex_analytics.transparency import explain_current_decision
+
+        trace = explain_current_decision(con, intent.split(":", 1)[1])
+        excluded = [f"{item['block']}: {item['reason']}" for item in trace["excluded"]]
+        return {
+            "conclusion": f"{trace['secid']}: {trace['final_status']}",
+            "supporting_evidence": trace["summary"]["positive"],
+            "opposing_evidence": trace["summary"]["negative"] + excluded[:5],
+            "confidence": "низкая" if "live" in trace["summary"]["main_limitation"] else "средняя",
+            "data_cutoff": trace["cutoff"],
+            "supported": True,
+        }
     report = latest_report(con)
     cutoff = report.get("analysis_cutoff")
     if not intent or report.get("status") == "insufficient_data":

@@ -181,8 +181,12 @@ def render_today():
     st.subheader("СЕГОДНЯШНИЙ ВЫВОД")
     counts = frame.visual_status.value_counts().to_dict()
     cols = st.columns(4)
-    filters = [("GREEN", "🟢 Можно рассматривать"), ("YELLOW", "🟡 Лучше ждать"),
-               ("RED", "🔴 Не увеличивать"), ("GRAY", "⚪ Недостаточно данных")]
+    filters = [
+        ("GREEN", "🟢 Можно рассматривать"),
+        ("YELLOW", "🟡 Лучше ждать"),
+        ("RED", "🔴 Не увеличивать"),
+        ("GRAY", "⚪ Недостаточно данных"),
+    ]
     selected = st.session_state.get("today_filter")
     for column, (key, text) in zip(cols, filters, strict=True):
         count = counts.get(key, 0) + (counts.get("LIGHT_GREEN", 0) if key == "GREEN" else 0)
@@ -194,7 +198,7 @@ def render_today():
         allowed = [selected, "LIGHT_GREEN"] if selected == "GREEN" else [selected]
         shown = frame[frame.visual_status.isin(allowed)]
     st.dataframe(_human_table(shown), use_container_width=True, hide_index=True)
-    alerts = frame[(frame.visual_status.isin(["RED", "ORANGE", "GRAY"])) | (frame.risk_contribution > .3)]
+    alerts = frame[(frame.visual_status.isin(["RED", "ORANGE", "GRAY"])) | (frame.risk_contribution > 0.3)]
     if not alerts.empty:
         st.subheader("ВАЖНО")
         for row in alerts.head(5).itertuples():
@@ -214,8 +218,10 @@ def render_today():
         _run_recalculation()
     live = _q("SELECT count(*) matured FROM forecast_outcomes WHERE outcome_status='matured'")
     matured = int(live.iloc[0].matured) if not live.empty else 0
-    st.caption(f"Модель проверена на {matured} live-прогнозах. "
-               + ("Live-история пока накапливается." if matured < 20 else "См. качество прогнозов."))
+    st.caption(
+        f"Модель проверена на {matured} live-прогнозах. "
+        + ("Live-история пока накапливается." if matured < 20 else "См. качество прогнозов.")
+    )
 
 
 def render_portfolio():
@@ -259,25 +265,47 @@ def _run_recalculation():
 
 def _editor_frame(rows):
     return pd.DataFrame(
-        [{"Тикер": x["secid"], "Количество": x["quantity"], "Средняя цена": x["average_price"],
-          "Разрешить покупку": x.get("allow_buy", True), "Разрешить сокращение": x.get("allow_sell", True),
-          "Заморожено": x.get("frozen", False), "Комментарий": x.get("notes", "")} for x in rows]
+        [
+            {
+                "Тикер": x["secid"],
+                "Количество": x["quantity"],
+                "Средняя цена": x["average_price"],
+                "Разрешить покупку": x.get("allow_buy", True),
+                "Разрешить сокращение": x.get("allow_sell", True),
+                "Заморожено": x.get("frozen", False),
+                "Комментарий": x.get("notes", ""),
+            }
+            for x in rows
+        ]
     )
 
 
 def _from_editor(frame):
-    return [{"secid": x.get("Тикер", ""), "quantity": x.get("Количество"),
-             "average_price": x.get("Средняя цена"), "allow_buy": x.get("Разрешить покупку", True),
-             "allow_sell": x.get("Разрешить сокращение", True), "frozen": x.get("Заморожено", False),
-             "notes": x.get("Комментарий", "")} for x in frame.to_dict("records")]
+    return [
+        {
+            "secid": x.get("Тикер", ""),
+            "quantity": x.get("Количество"),
+            "average_price": x.get("Средняя цена"),
+            "allow_buy": x.get("Разрешить покупку", True),
+            "allow_sell": x.get("Разрешить сокращение", True),
+            "frozen": x.get("Заморожено", False),
+            "notes": x.get("Комментарий", ""),
+        }
+        for x in frame.to_dict("records")
+    ]
 
 
 def _render_editor():
     st.divider()
     st.subheader("Редактировать портфель")
     original = load_positions()
-    edited = st.data_editor(_editor_frame(original), num_rows="dynamic", hide_index=True,
-                            use_container_width=True, key="portfolio_editor")
+    edited = st.data_editor(
+        _editor_frame(original),
+        num_rows="dynamic",
+        hide_index=True,
+        use_container_width=True,
+        key="portfolio_editor",
+    )
     candidate = _from_editor(edited)
     try:
         with connection(read_only=True) as con:
@@ -295,8 +323,9 @@ def _render_editor():
     if left.button("Сбросить изменения", use_container_width=True):
         st.session_state.pop("portfolio_editor", None)
         st.rerun()
-    if right.button("Сохранить и пересчитать", type="primary", disabled=not changes,
-                    use_container_width=True):
+    if right.button(
+        "Сохранить и пересчитать", type="primary", disabled=not changes, use_container_width=True
+    ):
         try:
             save_positions(normalized, set(names))
             with connection() as con:
@@ -320,12 +349,16 @@ def _company_card(row, report_id):
     cols[5].metric("Уверенность", confidence_dots(row.confidence_label))
     st.markdown(f"## {status_label(row.visual_status)}")
     st.caption(row.status_change)
-    items = [("БЛИЖАЙШИЕ ДНИ", horizon_label(row.short_term_view)),
-             ("МЕСЯЦ", horizon_label(row.medium_term_view)),
-             ("3–12 МЕСЯЦЕВ", horizon_label(row.long_term_view)),
-             ("ФУНДАМЕНТАЛ", row.portfolio_view), ("ОЦЕНКА", row.valuation_view),
-             ("ДИВИДЕНД", row.dividend_view), ("РИСК", row.risk_view),
-             ("ВЕС В ПОРТФЕЛЕ", "🔴 Высокий" if row.equity_weight >= .3 else "🔵 Допустимый")]
+    items = [
+        ("БЛИЖАЙШИЕ ДНИ", horizon_label(row.short_term_view)),
+        ("МЕСЯЦ", horizon_label(row.medium_term_view)),
+        ("3–12 МЕСЯЦЕВ", horizon_label(row.long_term_view)),
+        ("ФУНДАМЕНТАЛ", row.portfolio_view),
+        ("ОЦЕНКА", row.valuation_view),
+        ("ДИВИДЕНД", row.dividend_view),
+        ("РИСК", row.risk_view),
+        ("ВЕС В ПОРТФЕЛЕ", "🔴 Высокий" if row.equity_weight >= 0.3 else "🔵 Допустимый"),
+    ]
     for column, (title, value) in zip(st.columns(4) * 2, items, strict=True):
         with column:
             st.markdown(f"**{title}**")
@@ -366,11 +399,12 @@ def _company_card(row, report_id):
     with st.expander("История прогнозов"):
         history = _q(
             "SELECT r.cutoff Дата,r.horizon_sessions Горизонт,r.qualitative_direction Прогноз,"
-            "r.current_price \"Цена тогда\",o.actual_close \"Цена потом\",o.actual_return Доходность,"
+            'r.current_price "Цена тогда",o.actual_close "Цена потом",o.actual_return Доходность,'
             "coalesce(cast(o.direction_correct AS VARCHAR),o.outcome_status) Результат,"
             "r.model_version Версия "
             "FROM forecast_registry r LEFT JOIN forecast_outcomes o USING(forecast_id) "
-            "WHERE r.secid=? ORDER BY r.cutoff DESC,r.horizon_sessions", [row.secid]
+            "WHERE r.secid=? ORDER BY r.cutoff DESC,r.horizon_sessions",
+            [row.secid],
         )
         if history.empty:
             st.info("История начнёт накапливаться после ежедневного capture.")
@@ -381,13 +415,22 @@ def _company_card(row, report_id):
 def _allocation_inputs(frame):
     specs = _q("SELECT secid,lot_size FROM portfolio_instruments")
     lot_sizes = dict(zip(specs.secid, specs.lot_size, strict=False)) if not specs.empty else {}
-    return [{"secid": row.secid, "status": row.visual_status, "price": row.current_price,
-             "weight": row.equity_weight, "risk_contribution": row.risk_contribution,
-             "confidence": row.confidence_label, "reason": row.top_positive,
-             "risk": row.top_negative, "lot_size": lot_sizes.get(row.secid),
-             "liquidity_ok": row.data_status in {"sufficient", "validated_current"}
-             and pd.notna(lot_sizes.get(row.secid))}
-            for row in frame.itertuples()]
+    return [
+        {
+            "secid": row.secid,
+            "status": row.visual_status,
+            "price": row.current_price,
+            "weight": row.equity_weight,
+            "risk_contribution": row.risk_contribution,
+            "confidence": row.confidence_label,
+            "reason": row.top_positive,
+            "risk": row.top_negative,
+            "lot_size": lot_sizes.get(row.secid),
+            "liquidity_ok": row.data_status in {"sufficient", "validated_current"}
+            and pd.notna(lot_sizes.get(row.secid)),
+        }
+        for row in frame.itertuples()
+    ]
 
 
 def render_allocation():
@@ -401,8 +444,12 @@ def render_allocation():
     for column, amount in zip(quick, (50_000, 100_000, 250_000, 500_000, 1_000_000), strict=True):
         if column.button(f"{amount // 1000} тыс.", use_container_width=True):
             st.session_state.allocation_amount = amount
-    amount = st.number_input("Сумма пополнения, ₽", min_value=1.0,
-                             value=float(st.session_state.get("allocation_amount", 100_000)), step=10_000.0)
+    amount = st.number_input(
+        "Сумма пополнения, ₽",
+        min_value=1.0,
+        value=float(st.session_state.get("allocation_amount", 100_000)),
+        step=10_000.0,
+    )
     plan = plan_allocation(amount, _allocation_inputs(frame))
     summary = st.columns(2)
     summary[0].metric("Допустимо распределить сейчас", _money(plan.invested))
@@ -410,16 +457,28 @@ def render_allocation():
     if not plan.rows:
         st.info("Система не видит достаточно привлекательных вариантов для полного размещения суммы сейчас.")
     else:
-        st.dataframe(pd.DataFrame([{"Акция": x["secid"], "Сумма": _money(x["amount"]),
-            "Лотов": x["lots"], "Акций": x["quantity"], "Доля пополнения": _pct(x["allocation_share"]),
-            "Почему": x["reason"], "Риск": x["risk"]} for x in plan.rows]),
-            use_container_width=True, hide_index=True)
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Акция": x["secid"],
+                        "Сумма": _money(x["amount"]),
+                        "Лотов": x["lots"],
+                        "Акций": x["quantity"],
+                        "Доля пополнения": _pct(x["allocation_share"]),
+                        "Почему": x["reason"],
+                        "Риск": x["risk"],
+                    }
+                    for x in plan.rows
+                ]
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
     excluded = frame[~frame.visual_status.isin(["GREEN", "LIGHT_GREEN"])]
     with st.expander("Почему остальные позиции исключены"):
         for row in excluded.itertuples():
-            st.write(
-                f"{status_label(row.visual_status)} · {row.secid}: {row.top_negative}"
-            )
+            st.write(f"{status_label(row.visual_status)} · {row.secid}: {row.top_negative}")
 
 
 def render_stocks():
@@ -459,16 +518,19 @@ def render_ask():
             if plan.rows:
                 st.markdown("### Допустим только частичный поэтапный транш")
                 for row in plan.rows:
-                    st.markdown(f"**{row['secid']}** — {_money(row['amount'])}, "
-                                f"{row['lots']} лотов / {row['quantity']} акций")
-                    st.caption(f"Почему: {row['reason']} · Риск: {row['risk']} · "
-                               f"Уверенность: {row['confidence']}")
+                    st.markdown(
+                        f"**{row['secid']}** — {_money(row['amount'])}, "
+                        f"{row['lots']} лотов / {row['quantity']} акций"
+                    )
+                    st.caption(
+                        f"Почему: {row['reason']} · Риск: {row['risk']} · Уверенность: {row['confidence']}"
+                    )
             else:
                 st.markdown("### Сейчас нет достаточно подтверждённых кандидатов")
             st.info(f"Оставить в резерве: {_money(plan.reserve)}")
             st.caption(f"Данные на: {report.analysis_cutoff}. Только сохранённая аналитика.")
             return
-        with connection(read_only=True) as con:
+        with connection(read_only=False) as con:
             answer = answer_question(con, selected)
         st.markdown(f"### {answer['conclusion']}")
         st.caption(f"Уверенность: {answer['confidence']} · Данные на: {answer['data_cutoff']}")
@@ -550,19 +612,40 @@ def render_update():
     st.info("Быстрое — ежедневно. Глубокое — периодически. Переобучение — редко и без автопродвижения.")
     from moex_analytics.portfolio_research.daily_governance import run_daily_update
 
-    actions = (("🟢 Быстрое ежедневное обновление", "quick", False),
-               ("🔵 Глубокое обновление", "deep", False),
-               ("🟠 Исследовать/переобучить модели", "retrain", True))
+    actions = (
+        ("🟢 Быстрое ежедневное обновление", "quick", False),
+        ("🔵 Глубокое обновление", "deep", False),
+        ("🟠 Исследовать/переобучить модели", "retrain", True),
+    )
     for label, mode, dry_run in actions:
         if st.button(label, use_container_width=True):
             progress = st.progress(0, text="Подготовка")
-            labels = ["Цены", "Макро", "Фундаментал", "Дивиденды", "Режимы", "Портфель",
-                      "Прогнозы", "Проверка старых прогнозов"]
+            labels = [
+                "Цены",
+                "Макро",
+                "Фундаментал",
+                "Дивиденды",
+                "Режимы",
+                "Портфель",
+                "Прогнозы",
+                "Проверка старых прогнозов",
+            ]
             for index, name in enumerate(labels, 1):
                 progress.progress(index / 8, text=f"{index}/8 {name}")
             with connection() as con:
                 result = run_daily_update(con, mode=mode, dry_run=dry_run)
             st.success(f"Обновление завершено: {result['status']}")
-            st.json({key: result[key] for key in ("duration_seconds", "sources_checked",
-                    "http_requests", "rows_inserted", "errors", "new_forecasts",
-                    "matured_forecasts")})
+            st.json(
+                {
+                    key: result[key]
+                    for key in (
+                        "duration_seconds",
+                        "sources_checked",
+                        "http_requests",
+                        "rows_inserted",
+                        "errors",
+                        "new_forecasts",
+                        "matured_forecasts",
+                    )
+                }
+            )
