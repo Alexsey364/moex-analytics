@@ -49,7 +49,7 @@ def render_trading_statistics() -> None:
     st.header("Статистика торгов")
     coverage, breadth, state, liquidity = _tables()
     st.write({"securities": coverage[0], "rows": coverage[1], "from": coverage[2], "to": coverage[3]})
-    tabs = st.tabs(["Liquidity", "Breadth 2.0", "Market state", "Методология"])
+    tabs = st.tabs(["Liquidity", "Breadth 2.0", "Market state", "Batch history", "Методология"])
     with tabs[0]:
         st.dataframe(liquidity, use_container_width=True, hide_index=True)
     with tabs[1]:
@@ -57,6 +57,18 @@ def render_trading_statistics() -> None:
     with tabs[2]:
         st.dataframe(state, use_container_width=True, hide_index=True)
     with tabs[3]:
+        with connection(read_only=False) as con:
+            ensure_schema(con)
+            batches = con.execute("SELECT * FROM market_history_batch_runs ORDER BY finished_at DESC").df()
+            requests = con.execute(
+                """SELECT run_id,count(*) requests,sum(rows_received) rows_received,
+                avg(duration_seconds) average_request_seconds,
+                count(*) filter(where status!='completed') errors
+                FROM market_history_requests GROUP BY run_id ORDER BY run_id DESC"""
+            ).df()
+        st.dataframe(batches, use_container_width=True, hide_index=True)
+        st.dataframe(requests, use_container_width=True, hide_index=True)
+    with tabs[4]:
         st.markdown(
             "Tradable-on-date означает наличие торгов, не членство в индексе. "
             "Дублирующие доски исключаются явным правилом максимального оборота. "

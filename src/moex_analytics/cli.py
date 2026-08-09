@@ -459,6 +459,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("market-history-status")
     sub.add_parser("backfill-official-market-series")
     sub.add_parser("evaluate-market-factors")
+    continuing = sub.add_parser("continue-historical-market-backfill")
+    continuing.add_argument("--jobs", type=int, default=100)
+    continuing.add_argument("--pages-per-job", type=int, default=5)
+    sub.add_parser("historical-market-backfill-status")
+    sub.add_parser("historical-market-backfill-pause")
+    sub.add_parser("rebuild-breadth-after-backfill")
     for name in (
         "validate-portfolio-alpha",
         "validate-cross-instrument-factors",
@@ -1213,6 +1219,10 @@ def main() -> None:
         "market-history-status",
         "backfill-official-market-series",
         "evaluate-market-factors",
+        "continue-historical-market-backfill",
+        "historical-market-backfill-status",
+        "historical-market-backfill-pause",
+        "rebuild-breadth-after-backfill",
     }:
         from . import market_history
 
@@ -1228,6 +1238,15 @@ def main() -> None:
                 result = market_history.backfill_official_market_series(con)
             elif args.command == "evaluate-market-factors":
                 result = market_history.evaluate_market_factors(con)
+            elif args.command == "continue-historical-market-backfill":
+                market_history.set_pause(con, False)
+                result = market_history.run_batch(con, jobs=args.jobs, pages_per_job=args.pages_per_job)
+            elif args.command == "historical-market-backfill-pause":
+                result = market_history.set_pause(con, True)
+            elif args.command == "rebuild-breadth-after-backfill":
+                result = market_history.build_trading_statistics(con)
+            elif args.command == "historical-market-backfill-status":
+                result = market_history.coverage(con, save=True)
             else:
                 result = market_history.coverage(con, save=True)
             print(result)

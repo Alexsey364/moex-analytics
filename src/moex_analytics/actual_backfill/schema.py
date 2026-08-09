@@ -98,4 +98,20 @@ CREATE TABLE IF NOT EXISTS stage21_factor_evaluation(
  mean_ic DOUBLE, stable_fold_wins INTEGER, status VARCHAR, calculated_at TIMESTAMP,
  PRIMARY KEY(feature,horizon)
 );
+CREATE TABLE IF NOT EXISTS market_history_batch_runs(
+ run_id VARCHAR PRIMARY KEY, started_at TIMESTAMP, finished_at TIMESTAMP,
+ jobs_attempted INTEGER, jobs_completed INTEGER, securities_before INTEGER,
+ securities_after INTEGER, rows_before BIGINT, rows_after BIGINT, requests INTEGER,
+ errors INTEGER, duration_seconds DOUBLE, database_bytes_before BIGINT,
+ database_bytes_after BIGINT, raw_bytes_before BIGINT, raw_bytes_after BIGINT,
+ status VARCHAR, cursor_hash VARCHAR
+);
+CREATE TABLE IF NOT EXISTS market_history_control(
+ control_key VARCHAR PRIMARY KEY, control_value VARCHAR, updated_at TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS market_history_quality_issues(
+ issue_id VARCHAR PRIMARY KEY, detected_at TIMESTAMP, issue_type VARCHAR,
+ secid VARCHAR, boardid VARCHAR, trade_date DATE, details_json JSON,
+ status VARCHAR
+);
 """

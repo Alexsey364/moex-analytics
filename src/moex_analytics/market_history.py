@@ -112,10 +112,24 @@ def run_batch(
     ensure_schema(con)
     client = client or MoexClient()
     run_id = uuid.uuid4().hex[:20]
+    paused = con.execute(
+        "SELECT control_value FROM market_history_control WHERE control_key='paused'"
+    ).fetchone()
+    if paused and paused[0] == "true":
+        return {"status": "paused", "jobs_selected": 0}
+    started_at = datetime.now(UTC)
+    db_before = database_path().stat().st_size
+    raw_before = sum(p.stat().st_size for p in RAW_ROOT.rglob("*.json")) if RAW_ROOT.exists() else 0
+    before_rows, before_securities = con.execute(
+        "SELECT count(*),count(distinct secid) FROM moex_equity_eod"
+    ).fetchone()
     selected = con.execute(
-        """SELECT secid,boardid,engine,market,history_from,
+        """SELECT j.secid,j.boardid,j.engine,j.market,j.history_from,
         coalesce(history_till,current_date),next_start FROM market_history_jobs
-        WHERE status IN ('pending','running','failed') ORDER BY status,updated_at NULLS FIRST,secid
+        j JOIN historical_equity_universe u ON u.secid=j.secid
+        WHERE j.status IN ('pending','running','failed')
+        ORDER BY (j.rows_loaded=0) DESC,u.is_traded DESC,
+        j.status,j.updated_at NULLS FIRST,j.secid
         LIMIT ?""",
         [jobs],
     ).fetchall()
@@ -214,6 +228,40 @@ def run_batch(
                     [f"{type(exc).__name__}: {exc}", secid, board],
                 )
                 break
+    after_rows, after_securities = con.execute(
+        "SELECT count(*),count(distinct secid) FROM moex_equity_eod"
+    ).fetchone()
+    raw_after = sum(p.stat().st_size for p in RAW_ROOT.rglob("*.json")) if RAW_ROOT.exists() else 0
+    duration = (datetime.now(UTC) - started_at).total_seconds()
+    cursor = con.execute(
+        "SELECT secid,boardid,next_start FROM market_history_jobs "
+        "WHERE status!='completed' ORDER BY updated_at NULLS FIRST,secid LIMIT 1"
+    ).fetchone()
+    cursor_hash = hashlib.sha256(repr(cursor).encode()).hexdigest()[:24]
+    con.execute(
+        """INSERT INTO market_history_batch_runs VALUES
+        (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        [
+            run_id,
+            started_at,
+            datetime.now(UTC),
+            len(selected),
+            completed,
+            before_securities,
+            after_securities,
+            before_rows,
+            after_rows,
+            requests,
+            failures,
+            duration,
+            db_before,
+            database_path().stat().st_size,
+            raw_before,
+            raw_after,
+            "completed_with_errors" if failures else "completed",
+            cursor_hash,
+        ],
+    )
     return {
         "run_id": run_id,
         "jobs_selected": len(selected),
@@ -222,6 +270,98 @@ def run_batch(
         "rows_received": received,
         "rows_inserted": inserted,
         "failures": failures,
+        "securities_added": after_securities - before_securities,
+        "duration_seconds": duration,
+        "rows_per_second": (after_rows - before_rows) / duration if duration else 0,
+        "requests_per_second": requests / duration if duration else 0,
+        "rows_per_request": received / requests if requests else 0,
+        "database_growth": database_path().stat().st_size - db_before,
+        "raw_growth": raw_after - raw_before,
+        "cursor_hash": cursor_hash,
+    }
+
+
+def set_pause(con, paused=True) -> dict:
+    ensure_schema(con)
+    con.execute(
+        "INSERT OR REPLACE INTO market_history_control VALUES ('paused',?,current_timestamp)",
+        [str(bool(paused)).lower()],
+    )
+    return {"paused": bool(paused)}
+
+
+def quality_audit(con) -> dict:
+    ensure_schema(con)
+    checks = {
+        "ohlc_inconsistent": "high<low OR open<low OR open>high OR close<low OR close>high",
+        "negative_volume": "volume<0",
+        "negative_turnover": "value<0",
+        "invalid_numtrades": "num_trades<0",
+        "impossible_date": "trade_date>current_date OR trade_date<DATE '1990-01-01'",
+    }
+    written = 0
+    for issue, condition in checks.items():
+        rows = con.execute(
+            f"SELECT secid,boardid,trade_date FROM moex_equity_eod WHERE {condition}"
+        ).fetchall()
+        for secid, board, tradedate in rows:
+            key = hashlib.sha256(f"{issue}:{secid}:{board}:{tradedate}".encode()).hexdigest()[:24]
+            con.execute(
+                "INSERT OR IGNORE INTO market_history_quality_issues VALUES "
+                "(?,current_timestamp,?,?,?,?,?,'open')",
+                [key, issue, secid, board, tradedate, json.dumps({"condition": condition})],
+            )
+            written += 1
+    duplicate_keys = con.execute(
+        "SELECT count(*) FROM (SELECT trade_date,secid,boardid,trading_session,count(*) n "
+        "FROM moex_equity_eod GROUP BY 1,2,3,4 HAVING n>1)"
+    ).fetchone()[0]
+    jumps = con.execute(
+        """WITH x AS (SELECT trade_date,secid,boardid,close/
+        lag(close) over(PARTITION BY secid,boardid ORDER BY trade_date)-1 ret
+        FROM moex_equity_eod)
+        SELECT secid,boardid,trade_date,ret FROM x WHERE abs(ret)>.5"""
+    ).fetchall()
+    for secid, board, tradedate, value in jumps:
+        key = hashlib.sha256(f"large_jump:{secid}:{board}:{tradedate}".encode()).hexdigest()[:24]
+        con.execute(
+            "INSERT OR IGNORE INTO market_history_quality_issues VALUES "
+            "(?,current_timestamp,'large_return_corporate_action_review',?,?,?,?, 'open')",
+            [key, secid, board, tradedate, json.dumps({"return": value})],
+        )
+    return {
+        "issues_observed": written,
+        "stored_open": con.execute(
+            "SELECT count(*) FROM market_history_quality_issues WHERE status='open'"
+        ).fetchone()[0],
+        "duplicate_keys": duplicate_keys,
+        "corporate_action_flags": len(jumps),
+    }
+
+
+def survivorship_diagnostic(con) -> dict:
+    """Compare current survivors with the observed tradable-on-date universe."""
+    frame = con.execute(
+        """WITH r AS (SELECT e.trade_date,e.secid,u.is_traded,
+        e.close/lag(e.close) over(PARTITION BY e.secid ORDER BY e.trade_date)-1 ret
+        FROM moex_equity_eod e JOIN equity_board_history b USING(secid,boardid)
+        JOIN historical_equity_universe u USING(secid) WHERE b.selected_for_chain),
+        d AS (SELECT trade_date,avg(ret) all_return,
+        avg(ret) filter(where is_traded) survivor_return FROM r GROUP BY trade_date)
+        SELECT trade_date,survivor_return-all_return difference FROM d
+        WHERE survivor_return IS NOT NULL AND all_return IS NOT NULL"""
+    ).df()
+    if frame.empty:
+        return {"status": "insufficient_data"}
+    absolute = frame.difference.abs()
+    largest = frame.iloc[absolute.nlargest(10).index]
+    return {
+        "status": "partial_universe_bias_not_eliminated",
+        "days": len(frame),
+        "mean_difference": float(frame.difference.mean()),
+        "median_difference": float(frame.difference.median()),
+        "p95_absolute_difference": float(absolute.quantile(0.95)),
+        "largest_distortions": largest.to_dict("records"),
     }
 
 
@@ -314,10 +454,28 @@ def coverage(con, *, save=False) -> dict:
         "failed_jobs": states.get("failed", 0),
         "database_bytes": database_path().stat().st_size,
     }
+    active, inactive = con.execute(
+        """SELECT count(distinct e.secid) filter(where u.is_traded),
+        count(distinct e.secid) filter(where NOT u.is_traded)
+        FROM moex_equity_eod e JOIN historical_equity_universe u USING(secid)"""
+    ).fetchone()
+    result.update({"active": active, "inactive": inactive})
     if save:
         con.execute(
             "INSERT INTO stage21_coverage_snapshots VALUES (?,current_timestamp,?,?,?,?,?,?,?,?,?,?)",
-            [uuid.uuid4().hex[:20], *result.values(), json.dumps(result, default=str)],
+            [
+                uuid.uuid4().hex[:20],
+                result["securities"],
+                result["boards"],
+                result["rows"],
+                result["date_from"],
+                result["date_to"],
+                result["completed_jobs"],
+                result["pending_jobs"],
+                result["failed_jobs"],
+                result["database_bytes"],
+                json.dumps(result, default=str),
+            ],
         )
     return result
 

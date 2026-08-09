@@ -8,6 +8,8 @@ from moex_analytics.market_history import (
     build_trading_statistics,
     eligible_universe,
     evaluate_market_factors,
+    run_batch,
+    set_pause,
 )
 
 
@@ -113,3 +115,16 @@ def test_factor_evaluation_refuses_to_invent_results_without_sample():
     con.execute("""CREATE TABLE macro_observations(series_id VARCHAR,observation_date DATE,
         available_from TIMESTAMP,value DOUBLE)""")
     assert evaluate_market_factors(con) == {"status": "insufficient_data", "evaluations": 0}
+
+
+def test_pause_is_persistent_and_prevents_requests():
+    con = _database()
+    con.execute("ALTER TABLE historical_equity_universe ADD COLUMN is_traded BOOLEAN")
+    assert set_pause(con, True) == {"paused": True}
+    assert run_batch(con, client=object()) == {"status": "paused", "jobs_selected": 0}
+    assert (
+        con.execute("SELECT control_value FROM market_history_control WHERE control_key='paused'").fetchone()[
+            0
+        ]
+        == "true"
+    )

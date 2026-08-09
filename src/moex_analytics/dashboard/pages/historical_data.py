@@ -56,9 +56,36 @@ def render_basic() -> None:
             ).fetchone()
             st.subheader("Historical universe")
             st.write(
-                f"PIT membership до этапа: 0 → tradable-on-date: "
-                f"{securities} securities / {rows} EOD rows"
+                f"PIT membership до этапа: 0 → tradable-on-date: {securities} securities / {rows} EOD rows"
             )
+        if "market_history_jobs" in tables:
+            total, complete, errors = con.execute(
+                """SELECT count(*),count(*) filter(where status='completed'),
+                count(*) filter(where status='failed') FROM market_history_jobs"""
+            ).fetchone()
+            securities, rows = con.execute(
+                "SELECT count(distinct secid),count(*) FROM moex_equity_eod"
+            ).fetchone()
+            active, inactive = con.execute(
+                """SELECT count(distinct e.secid) filter(where u.is_traded),
+                count(distinct e.secid) filter(where NOT u.is_traded)
+                FROM moex_equity_eod e JOIN historical_equity_universe u USING(secid)"""
+            ).fetchone()
+            last = (
+                con.execute(
+                    "SELECT finished_at,cursor_hash FROM market_history_batch_runs "
+                    "ORDER BY finished_at DESC LIMIT 1"
+                ).fetchone()
+                if "market_history_batch_runs" in tables
+                else None
+            )
+            st.subheader("Historical equity universe backfill")
+            st.progress(min(securities / 2623, 1.0), text=f"Бумаги: 156 / 2623 → {securities} / 2623")
+            st.progress(
+                min(complete / max(total, 1), 1.0), text=f"Задания: 241 / 3428 → {complete} / {total}"
+            )
+            st.write(f"EOD rows: 123637 → {rows}; active: {active}; inactive: {inactive}; errors: {errors}")
+            st.caption(f"Последний checkpoint: {last or 'batch history ещё не создана'}")
         fx = con.execute(
             """SELECT count(*) FROM macro_observations
             WHERE series_id IN ('cbr_usd_rub','cbr_eur_rub','cbr_cny_rub')"""
