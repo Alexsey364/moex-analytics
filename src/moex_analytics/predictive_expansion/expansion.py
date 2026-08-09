@@ -115,6 +115,8 @@ def run_equity_expansion(con, *, target: int | None = None, config: dict | None 
             jobs=int(safety["batch_jobs"]),
             pages_per_job=int(safety["pages_per_job"]),
             pause=float(safety["request_pause_seconds"]),
+            max_requests=max(int(safety["max_requests"]) - total_requests, 1),
+            deadline_seconds=max(float(safety["max_runtime_minutes"]) * 60 - elapsed, 1),
         )
         total_requests += int(batch.get("requests", 0))
         total_errors += int(batch.get("failures", 0))

@@ -22,6 +22,7 @@ data/local/*
 data/review/*
 !data/review/.gitkeep
 database/*.duckdb
+database/*.duckdb.wal
 reports/*
 !reports/.gitkeep
 

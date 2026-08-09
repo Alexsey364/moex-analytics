@@ -6,8 +6,8 @@ safety:
   max_runtime_minutes: 480
   max_requests: 12000
   max_disk_growth_gb: 20
-  batch_jobs: 150
-  pages_per_job: 25
+  batch_jobs: 20
+  pages_per_job: 5
   checkpoint_securities: 100
   request_pause_seconds: 0.08
   max_consecutive_failed_batches: 3

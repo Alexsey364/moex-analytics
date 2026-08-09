@@ -9,7 +9,7 @@ if not exist "%PYTHON_EXE%" (
   exit /b 1
 )
 
-"%PYTHON_EXE%" -m moex_analytics.cli run-predictive-data-expansion
+"%PYTHON_EXE%" -u -m moex_analytics.cli run-predictive-data-expansion
 set "EXIT_CODE=%ERRORLEVEL%"
 if not "%EXIT_CODE%"=="0" echo ERROR: Predictive data expansion stopped with code %EXIT_CODE%.
 exit /b %EXIT_CODE%

@@ -20,13 +20,15 @@ def test_equity_expansion_stops_at_target_and_does_not_reseed(monkeypatch, tmp_p
     con = duckdb.connect(":memory:")
     con.execute(ACTUAL_DDL)
     state = {"securities": 549}
+    safety = {}
     monkeypatch.setattr(
         expansion.market_history,
         "coverage",
         lambda _con, save=False: _coverage(state["securities"]),
     )
 
-    def batch(_con, **_kwargs):
+    def batch(_con, **kwargs):
+        safety.update(kwargs)
         state["securities"] += 120
         return {
             "run_id": str(state["securities"]),
@@ -60,6 +62,8 @@ def test_equity_expansion_stops_at_target_and_does_not_reseed(monkeypatch, tmp_p
     assert result["status"] == "target_reached"
     assert result["after"]["securities"] >= 700
     assert result["production_changes"] == 0
+    assert 0 < safety["max_requests"] <= 100
+    assert 0 < safety["deadline_seconds"] <= 600
     assert con.execute("SELECT count(*) FROM stage30_expansion_checkpoints").fetchone()[0] >= 1
 
 

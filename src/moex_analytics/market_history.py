@@ -107,6 +107,8 @@ def run_batch(
     jobs: int = 25,
     pages_per_job: int | None = None,
     pause: float = 0.05,
+    max_requests: int | None = None,
+    deadline_seconds: float | None = None,
 ) -> dict:
     """Continue pending/failed jobs. Commit each page so interruption loses no completed work."""
     ensure_schema(con)
@@ -134,7 +136,14 @@ def run_batch(
         [jobs],
     ).fetchall()
     requests = received = inserted = failures = completed = 0
+    safety_boundary_reached = False
     for secid, board, engine, market, first, last, start in selected:
+        if (max_requests is not None and requests >= max_requests) or (
+            deadline_seconds is not None
+            and (datetime.now(UTC) - started_at).total_seconds() >= deadline_seconds
+        ):
+            safety_boundary_reached = True
+            break
         con.execute(
             "UPDATE market_history_jobs SET status='running',attempts=attempts+1,"
             "updated_at=current_timestamp WHERE secid=? AND boardid=?",
@@ -142,6 +151,17 @@ def run_batch(
         )
         page_no = 0
         while True:
+            if (max_requests is not None and requests >= max_requests) or (
+                deadline_seconds is not None
+                and (datetime.now(UTC) - started_at).total_seconds() >= deadline_seconds
+            ):
+                con.execute(
+                    """UPDATE market_history_jobs SET status='pending',updated_at=current_timestamp
+                    WHERE secid=? AND boardid=?""",
+                    [secid, board],
+                )
+                safety_boundary_reached = True
+                break
             began = time.perf_counter()
             source = (
                 f"{client.base_url}/history/engines/{engine}/"
@@ -228,6 +248,8 @@ def run_batch(
                     [f"{type(exc).__name__}: {exc}", secid, board],
                 )
                 break
+        if safety_boundary_reached:
+            break
     after_rows, after_securities = con.execute(
         "SELECT count(*),count(distinct secid) FROM moex_equity_eod"
     ).fetchone()
@@ -278,6 +300,7 @@ def run_batch(
         "database_growth": database_path().stat().st_size - db_before,
         "raw_growth": raw_after - raw_before,
         "cursor_hash": cursor_hash,
+        "safety_boundary_reached": safety_boundary_reached,
     }
 
 
