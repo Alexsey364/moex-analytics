@@ -474,6 +474,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("feature-learning-status")
     sub.add_parser("run-market-memory")
     sub.add_parser("market-memory-status")
+    sub.add_parser("run-calibration-audit")
+    sub.add_parser("calibration-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -610,6 +612,17 @@ def main() -> None:
         with connection() as con:
             result = (
                 run_market_memory(con) if args.command == "run-market-memory" else market_memory_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"run-calibration-audit", "calibration-status"}:
+        from .uncertainty import calibration_status, run_calibration_audit
+
+        init_database()
+        with connection() as con:
+            result = (
+                run_calibration_audit(con)
+                if args.command == "run-calibration-audit"
+                else calibration_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {

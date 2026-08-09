@@ -53,6 +53,7 @@ from moex_analytics.dashboard.pages import (
     trading_statistics,
     transparency,
     unblocked_experiment,
+    uncertainty,
     update_data,
 )
 from moex_analytics.database import database_path, init_database
@@ -89,6 +90,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Калибровка и неопределённость": uncertainty.render,
     "Историческая память рынка": market_memory.render,
     "Feature Performance Memory": feature_learning.render,
     "Турнир моделей": model_tournament.render,
