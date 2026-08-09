@@ -47,8 +47,12 @@ def _build_liquidity(con) -> int:
           FROM moex_equity_eod e JOIN equity_board_history b USING(secid,boardid)
           WHERE b.selected_for_chain
         ), base AS (
-          SELECT *,close/previous_close-1 ret,
-          stddev_samp(close/previous_close-1) OVER(
+          SELECT *,CASE WHEN close>0 AND previous_close>0
+            AND abs(ln(close)-ln(previous_close))<ln(100)
+            THEN exp(ln(close)-ln(previous_close))-1 END ret,
+          stddev_samp(CASE WHEN close>0 AND previous_close>0
+            AND abs(ln(close)-ln(previous_close))<ln(100)
+            THEN exp(ln(close)-ln(previous_close))-1 END) OVER(
             PARTITION BY secid ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) vol20
           FROM raw
         ), rolling AS (
@@ -86,7 +90,9 @@ def _build_breadth(con, minimum_constituents: int = 30) -> int:
         """INSERT INTO stage30_breadth_daily
         WITH base AS (
           SELECT e.trade_date,e.secid,e.close,e.value,e.volume,
-          close/lag(close) OVER(PARTITION BY e.secid ORDER BY trade_date)-1 ret,
+          CASE WHEN close>0 AND lag(close) OVER(PARTITION BY e.secid ORDER BY trade_date)>0
+            AND abs(ln(close)-ln(lag(close) OVER(PARTITION BY e.secid ORDER BY trade_date)))<ln(100)
+            THEN exp(ln(close)-ln(lag(close) OVER(PARTITION BY e.secid ORDER BY trade_date)))-1 END ret,
           max(close) OVER(PARTITION BY e.secid ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) hi20,
           max(close) OVER(PARTITION BY e.secid ORDER BY trade_date ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) hi60,
           max(close) OVER(PARTITION BY e.secid ORDER BY trade_date ROWS BETWEEN 249 PRECEDING AND CURRENT ROW) hi250,

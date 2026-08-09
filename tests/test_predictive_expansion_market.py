@@ -91,3 +91,25 @@ def test_survivorship_checkpoint_is_thresholded_and_idempotent(monkeypatch):
     market._capture_survivorship(con, 1000)
     market._capture_survivorship(con, 1000)
     assert con.execute("SELECT count(*) FROM stage30_survivorship_diagnostics").fetchone()[0] == 2
+
+
+def test_extreme_unresolved_price_ratio_does_not_overflow(monkeypatch):
+    con = duckdb.connect(":memory:")
+    con.execute(ACTUAL_DDL)
+    con.execute(
+        """CREATE TABLE issuer_fundamental_values(
+        secid VARCHAR,period_end DATE,validation_status VARCHAR)"""
+    )
+    con.execute(
+        """INSERT INTO moex_equity_eod
+        (trade_date,secid,boardid,trading_session,close,value,volume,num_trades)
+        VALUES ('2020-01-01','X','TQBR',0,1e-200,1,1,1),
+               ('2020-01-02','X','TQBR',0,1e200,1,1,1)"""
+    )
+    monkeypatch.setattr(market, "quality_audit", lambda _con: {})
+    result = market.build_market_features(con)
+    assert result["securities"] == 1
+    value = con.execute(
+        "SELECT return_1d FROM stage30_liquidity_daily WHERE trade_date='2020-01-02'"
+    ).fetchone()[0]
+    assert value is None
