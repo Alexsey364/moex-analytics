@@ -115,3 +115,35 @@ def render_quality_expansion() -> None:
             use_container_width=True,
         )
         st.warning("MOEX metadata подтверждает контекст бумаги, но не коэффициент корректировки цены.")
+
+
+def render_issuer_context() -> None:
+    st.header("PIT-фундаментал и отраслевой контекст")
+    with read_connection() as con:
+        if not table_exists(con, "issuer_context_runs"):
+            st.info("Stage 35 ещё не рассчитан.")
+            return
+        run = con.execute(
+            """SELECT run_id,status,fundamental_state_rows,derived_rows,sector_rows,
+            issuers_five_periods FROM issuer_context_runs ORDER BY started_at DESC LIMIT 1"""
+        ).fetchone()
+        cols = st.columns(4)
+        cols[0].metric("PIT states", run[2])
+        cols[1].metric("Derived states", run[3])
+        cols[2].metric("Sector observations", run[4])
+        cols[3].metric("Issuers ≥5 periods", run[5])
+        st.caption(f"Run {run[0]}, status: {run[1]}; X5 и FIVE не объединяются.")
+        st.dataframe(
+            con.execute(
+                """SELECT issuer,validated_periods,coverage_status,limitation
+                FROM stage30_fundamental_coverage ORDER BY issuer"""
+            ).df(),
+            use_container_width=True,
+        )
+        st.dataframe(
+            con.execute(
+                """SELECT issuer_group,sector_series,count(*) observations,min(trade_date) first_date,
+                max(trade_date) last_date FROM issuer_sector_context_daily GROUP BY 1,2 ORDER BY 1"""
+            ).df(),
+            use_container_width=True,
+        )

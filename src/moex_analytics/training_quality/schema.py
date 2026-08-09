@@ -107,4 +107,26 @@ CREATE TABLE IF NOT EXISTS quality_expansion_runs(
  candidates INTEGER,requests INTEGER,validated_resolutions INTEGER,unresolved_after INTEGER,
  panel_version VARCHAR,stop_reason VARCHAR,production_changes INTEGER,details_json JSON
 );
+CREATE TABLE IF NOT EXISTS issuer_pit_fundamental_states(
+ trade_date DATE,issuer_group VARCHAR,secid VARCHAR,metric VARCHAR,period_end DATE,
+ publication_date DATE,available_from TIMESTAMP,value DOUBLE,unit VARCHAR,source VARCHAR,
+ validation_status VARCHAR,PRIMARY KEY(trade_date,issuer_group,secid,metric)
+);
+CREATE TABLE IF NOT EXISTS issuer_derived_fundamental_features(
+ trade_date DATE,issuer_group VARCHAR,periods_available INTEGER,growth_score DOUBLE,
+ margin_trend DOUBLE,fcf_trend DOUBLE,debt_trend DOUBLE,roe_trend DOUBLE,payout_trend DOUBLE,
+ valuation_history_score DOUBLE,quality_status VARCHAR,PRIMARY KEY(trade_date,issuer_group)
+);
+CREATE TABLE IF NOT EXISTS issuer_sector_context_daily(
+ trade_date DATE,issuer_group VARCHAR,secid VARCHAR,sector_series VARCHAR,sector_value DOUBLE,
+ sector_return_20 DOUBLE,sector_return_60 DOUBLE,sector_volatility_60 DOUBLE,
+ sector_drawdown DOUBLE,relative_strength_20 DOUBLE,relative_strength_60 DOUBLE,
+ source VARCHAR,pit_status VARCHAR,PRIMARY KEY(trade_date,issuer_group,secid)
+);
+CREATE TABLE IF NOT EXISTS issuer_context_runs(
+ run_id VARCHAR PRIMARY KEY,started_at TIMESTAMP,finished_at TIMESTAMP,status VARCHAR,
+ issuers INTEGER,fundamental_state_rows BIGINT,derived_rows BIGINT,sector_rows BIGINT,
+ issuers_five_periods INTEGER,requests INTEGER,runtime_seconds DOUBLE,
+ production_changes INTEGER,details_json JSON
+);
 """
