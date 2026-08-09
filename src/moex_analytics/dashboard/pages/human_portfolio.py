@@ -508,6 +508,25 @@ def render_stocks():
         return
     secid = st.selectbox("Выберите акцию", frame.secid.tolist())
     _company_card(frame[frame.secid == secid].iloc[0], report.report_id)
+    evidence = _q(
+        """SELECT horizon,experiment,improvement,ci_low,ci_high,status,details_json
+        FROM issuer_evidence_results WHERE secid=? AND run_id=(SELECT run_id
+        FROM issuer_evidence_runs ORDER BY started_at DESC LIMIT 1)
+        QUALIFY row_number() OVER(PARTITION BY horizon ORDER BY
+        CASE status WHEN 'SHADOW_CANDIDATE' THEN 0 WHEN 'IMPROVED_BY_ISSUER_DATA' THEN 1
+        WHEN 'WEAK_EVIDENCE' THEN 2 ELSE 3 END,improvement DESC NULLS LAST)=1
+        ORDER BY horizon""",
+        [secid],
+    )
+    if not evidence.empty:
+        rank = {"SHADOW_CANDIDATE": "повышенная", "IMPROVED_BY_ISSUER_DATA": "повышенная",
+                "WEAK_EVIDENCE": "средняя", "NO_EVIDENCE": "низкая"}
+        st.subheader("Историческая доказательность")
+        st.dataframe(evidence.assign(level=evidence.status.map(rank)), use_container_width=True)
+        working = evidence[evidence.status != "NO_EVIDENCE"].experiment.unique().tolist()
+        st.caption("Основные работающие блоки: " + (", ".join(working) if working else "не подтверждены"))
+        st.caption("Основные ограничения: нет matured live outcomes; probability gate закрыт.")
+        st.caption("Live verification: 0 matured.")
     from moex_analytics.dashboard.pages.market_memory import render_basic_analogs
 
     render_basic_analogs(secid)

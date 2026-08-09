@@ -129,4 +129,26 @@ CREATE TABLE IF NOT EXISTS issuer_context_runs(
  issuers_five_periods INTEGER,requests INTEGER,runtime_seconds DOUBLE,
  production_changes INTEGER,details_json JSON
 );
+CREATE TABLE IF NOT EXISTS issuer_evidence_benchmarks(
+ benchmark_hash VARCHAR PRIMARY KEY,frozen_at TIMESTAMP,source_stage VARCHAR,
+ summary_json JSON,immutable BOOLEAN
+);
+CREATE TABLE IF NOT EXISTS issuer_evidence_runs(
+ run_id VARCHAR PRIMARY KEY,started_at TIMESTAMP,finished_at TIMESTAMP,status VARCHAR,
+ benchmark_hash VARCHAR,results INTEGER,shadow_candidates INTEGER,probability_approved INTEGER,
+ runtime_seconds DOUBLE,production_changes INTEGER,details_json JSON
+);
+CREATE TABLE IF NOT EXISTS issuer_evidence_results(
+ run_id VARCHAR,secid VARCHAR,horizon INTEGER,experiment VARCHAR,model VARCHAR,
+ rows BIGINT,folds INTEGER,baseline_balanced_accuracy DOUBLE,balanced_accuracy DOUBLE,
+ mae DOUBLE,rmse DOUBLE,rank_ic DOUBLE,spearman DOUBLE,improvement DOUBLE,
+ ci_low DOUBLE,ci_high DOUBLE,fold_wins INTEGER,fold_stability DOUBLE,
+ regime_stability DOUBLE,status VARCHAR,probability_allowed BOOLEAN,details_json JSON,
+ PRIMARY KEY(run_id,secid,horizon,experiment)
+);
+CREATE TABLE IF NOT EXISTS issuer_feature_ablation(
+ run_id VARCHAR,secid VARCHAR,horizon INTEGER,removed_family VARCHAR,
+ balanced_accuracy_delta DOUBLE,mae_delta DOUBLE,status VARCHAR,details_json JSON,
+ PRIMARY KEY(run_id,secid,horizon,removed_family)
+);
 """

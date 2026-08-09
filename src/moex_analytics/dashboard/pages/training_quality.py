@@ -147,3 +147,30 @@ def render_issuer_context() -> None:
             ).df(),
             use_container_width=True,
         )
+
+
+def render_issuer_evidence() -> None:
+    st.header("Что действительно помогает прогнозировать каждую бумагу")
+    with read_connection() as con:
+        if not table_exists(con, "issuer_evidence_runs"):
+            st.info("Stage 36 ещё не рассчитан.")
+            return
+        run = con.execute(
+            """SELECT run_id,results,shadow_candidates,probability_approved,runtime_seconds
+            FROM issuer_evidence_runs WHERE status='completed' ORDER BY started_at DESC LIMIT 1"""
+        ).fetchone()
+        cols = st.columns(4)
+        cols[0].metric("Experiments", run[1])
+        cols[1].metric("Shadow candidates", run[2])
+        cols[2].metric("Probability approved", run[3])
+        cols[3].metric("Runtime, sec", round(run[4] or 0, 1))
+        st.dataframe(
+            con.execute(
+                """SELECT secid,horizon,experiment,rows,balanced_accuracy,improvement,
+                ci_low,ci_high,fold_stability,status FROM issuer_evidence_results
+                WHERE run_id=? ORDER BY secid,horizon,experiment""",
+                [run[0]],
+            ).df(),
+            use_container_width=True,
+        )
+        st.warning("Research only: production unchanged, numerical probability gated.")

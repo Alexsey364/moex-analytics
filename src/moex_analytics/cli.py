@@ -507,6 +507,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("quality-expansion-status")
     sub.add_parser("build-issuer-context")
     sub.add_parser("issuer-context-status")
+    sub.add_parser("run-issuer-evidence-research")
+    sub.add_parser("issuer-evidence-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -812,6 +814,17 @@ def main() -> None:
                 build_issuer_context(con)
                 if args.command == "build-issuer-context"
                 else issuer_context_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"run-issuer-evidence-research", "issuer-evidence-status"}:
+        from .training_quality import issuer_evidence_status, run_issuer_evidence_research
+
+        init_database()
+        with connection() as con:
+            result = (
+                run_issuer_evidence_research(con, progress=print)
+                if args.command == "run-issuer-evidence-research"
+                else issuer_evidence_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
