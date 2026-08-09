@@ -499,6 +499,8 @@ def build_parser() -> argparse.ArgumentParser:
     predictive_run.add_argument("--target", type=int)
     sub.add_parser("resolve-corporate-actions")
     sub.add_parser("corporate-action-quality-status")
+    sub.add_parser("build-high-quality-training-universe")
+    sub.add_parser("training-universe-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -760,6 +762,17 @@ def main() -> None:
                 build_corporate_action_quality(con)
                 if args.command == "resolve-corporate-actions"
                 else corporate_action_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"build-high-quality-training-universe", "training-universe-status"}:
+        from .training_quality import build_training_universe, training_universe_status
+
+        init_database()
+        with connection() as con:
+            result = (
+                build_training_universe(con)
+                if args.command == "build-high-quality-training-universe"
+                else training_universe_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {

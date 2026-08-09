@@ -36,11 +36,17 @@ def _episodes(con) -> int:
           lag(e.trade_date) OVER(PARTITION BY e.secid ORDER BY e.trade_date) prior_date
           FROM moex_equity_eod e JOIN equity_board_history b USING(secid,boardid)
           WHERE b.selected_for_chain AND e.close>0
+        ), candidates AS (
+          SELECT *,close/prior_close ratio FROM chain
+          WHERE prior_close>0 AND abs(ln(close)-ln(prior_close))>ln(1.5)
+        ), flagged AS (
+          SELECT *,lag(trade_date) OVER(PARTITION BY secid ORDER BY trade_date) prior_flag_date
+          FROM candidates
         ), flags AS (
-          SELECT *,close/prior_close ratio,
-          sum(CASE WHEN date_diff('day',prior_date,trade_date)>5 THEN 1 ELSE 0 END)
+          SELECT *,sum(CASE WHEN prior_flag_date IS NULL
+            OR date_diff('day',prior_flag_date,trade_date)>5 THEN 1 ELSE 0 END)
           OVER(PARTITION BY secid ORDER BY trade_date) episode_no
-          FROM chain WHERE prior_close>0 AND abs(ln(close)-ln(prior_close))>ln(1.5)
+          FROM flagged
         ), grouped AS (
           SELECT secid,episode_no,min(trade_date) date_from,max(trade_date) date_to,count(*) n,
           list(DISTINCT boardid) boards,first(prior_close ORDER BY trade_date) before_px,

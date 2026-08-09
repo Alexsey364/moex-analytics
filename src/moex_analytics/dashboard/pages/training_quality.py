@@ -33,3 +33,29 @@ def render_corporate_actions() -> None:
             use_container_width=True,
         )
         st.caption("Raw EOD не изменяется. Ratio detection не является подтверждением события.")
+
+
+def render_training_universe() -> None:
+    st.header("Обучающая выборка")
+    with read_connection() as con:
+        if not table_exists(con, "training_universe_runs"):
+            st.info("Stage 32 ещё не рассчитан.")
+            return
+        row = con.execute(
+            """SELECT raw_securities,eligible_securities,rows,dates,dataset_version,cutoff
+            FROM training_universe_runs ORDER BY created_at DESC LIMIT 1"""
+        ).fetchone()
+        cols = st.columns(4)
+        cols[0].metric("Raw universe", row[0])
+        cols[1].metric("Training universe", row[1])
+        cols[2].metric("Rows", row[2])
+        cols[3].metric("Dates", row[3])
+        st.caption(f"Frozen dataset {row[4]}, cutoff {row[5]}")
+        st.dataframe(
+            con.execute(
+                """SELECT quality_tier,count(DISTINCT secid) securities,count(*) rows
+                FROM historical_training_panel WHERE dataset_version=? GROUP BY 1 ORDER BY 1""",
+                [row[4]],
+            ).df(),
+            use_container_width=True,
+        )
