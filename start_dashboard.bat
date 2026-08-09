@@ -1,10 +1,18 @@
 @echo off
+chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 if not exist ".venv\Scripts\python.exe" (
-  echo [ERROR] Virtual environment .venv was not found.
-  echo python -m venv .venv
-  echo .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+  echo [INFO] Virtual environment .venv was not found. Creating it with Python 3.12...
+  py -3.12 -m venv .venv
+  if errorlevel 1 (
+    echo [ERROR] Could not create .venv. Install Python 3.12 and try again.
+    pause
+    exit /b 1
+  )
+)
+".venv\Scripts\python.exe" scripts\check_runtime_dependencies.py
+if errorlevel 1 (
   pause
   exit /b 1
 )

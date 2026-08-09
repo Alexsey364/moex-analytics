@@ -5,7 +5,18 @@ cd /d "%~dp0"
 set "PYTHON_EXE=.venv312\Scripts\python.exe"
 if not exist "%PYTHON_EXE%" set "PYTHON_EXE=.venv\Scripts\python.exe"
 if not exist "%PYTHON_EXE%" (
-  echo [ERROR] Не найдено виртуальное окружение .venv312 или .venv.
+  echo Не найдено виртуальное окружение. Создаю .venv с Python 3.12...
+  py -3.12 -m venv .venv
+  if errorlevel 1 (
+    echo [ОШИБКА] Не удалось создать .venv. Установите Python 3.12 и повторите запуск.
+    pause
+    exit /b 1
+  )
+  set "PYTHON_EXE=.venv\Scripts\python.exe"
+)
+
+"%PYTHON_EXE%" scripts\check_runtime_dependencies.py
+if errorlevel 1 (
   pause
   exit /b 1
 )
