@@ -478,6 +478,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("calibration-status")
     sub.add_parser("run-meta-learning")
     sub.add_parser("meta-learning-status")
+    sub.add_parser("run-portfolio-learning")
+    sub.add_parser("portfolio-learning-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -634,6 +636,17 @@ def main() -> None:
         with connection() as con:
             result = (
                 run_meta_learning(con) if args.command == "run-meta-learning" else meta_learning_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"run-portfolio-learning", "portfolio-learning-status"}:
+        from .portfolio_learning import portfolio_learning_status, run_portfolio_learning
+
+        init_database()
+        with connection() as con:
+            result = (
+                run_portfolio_learning(con)
+                if args.command == "run-portfolio-learning"
+                else portfolio_learning_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {

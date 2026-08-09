@@ -46,6 +46,7 @@ from moex_analytics.dashboard.pages import (
     methodology,
     model_tournament,
     overview,
+    portfolio_learning,
     portfolio_research,
     predictive_foundation,
     sber_decision,
@@ -91,6 +92,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Portfolio-aware learning": portfolio_learning.render,
     "Meta confidence и abstention": meta_learning.render,
     "Калибровка и неопределённость": uncertainty.render,
     "Историческая память рынка": market_memory.render,
