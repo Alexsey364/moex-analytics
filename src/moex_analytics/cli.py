@@ -470,6 +470,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("predictive-learning-status")
     sub.add_parser("run-model-tournament")
     sub.add_parser("model-tournament-status")
+    sub.add_parser("run-feature-learning")
+    sub.add_parser("feature-learning-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -590,6 +592,17 @@ def main() -> None:
                 run_tournament(con)
                 if args.command == "run-model-tournament"
                 else tournament_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"run-feature-learning", "feature-learning-status"}:
+        from .feature_learning import feature_learning_status, run_feature_learning
+
+        init_database()
+        with connection() as con:
+            result = (
+                run_feature_learning(con)
+                if args.command == "run-feature-learning"
+                else feature_learning_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {

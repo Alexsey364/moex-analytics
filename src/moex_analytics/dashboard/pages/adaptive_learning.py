@@ -3,6 +3,7 @@
 import streamlit as st
 
 from moex_analytics.adaptive_learning.core import ensure_schema
+from moex_analytics.dashboard.pages.feature_learning import render_basic_scorecards
 from moex_analytics.database import connection
 from moex_analytics.model_tournament.core import ensure_schema as ensure_tournament_schema
 
@@ -118,3 +119,4 @@ def render_basic() -> None:
         st.write(f"Статус: {row.status}; {label}. Probability gated: {gate}.")
         if not row.probability_allowed:
             st.caption("Числовая вероятность скрыта: calibration/OOS policy не выполнена.")
+    render_basic_scorecards()

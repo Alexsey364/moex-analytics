@@ -34,6 +34,7 @@ from moex_analytics.dashboard.pages import (
     data_quality,
     database_status,
     deep_backfill,
+    feature_learning,
     forecast_scorecard,
     fundamentals,
     historical_data,
@@ -87,6 +88,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Feature Performance Memory": feature_learning.render,
     "Турнир моделей": model_tournament.render,
     "Decision Trace": transparency.render_trace,
     "Data Inventory": transparency.render_data,
