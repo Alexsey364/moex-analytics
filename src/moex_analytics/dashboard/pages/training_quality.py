@@ -59,3 +59,30 @@ def render_training_universe() -> None:
             ).df(),
             use_container_width=True,
         )
+
+
+def render_clean_relearning() -> None:
+    st.header("Повлияло ли качество данных на прогноз?")
+    with read_connection() as con:
+        if not table_exists(con, "clean_relearning_runs"):
+            st.info("Stage 33 ещё не рассчитан.")
+            return
+        run = con.execute(
+            """SELECT run_id,dataset_version,results,shadow_candidates,probability_approved,
+            runtime_seconds FROM clean_relearning_runs ORDER BY started_at DESC LIMIT 1"""
+        ).fetchone()
+        cols = st.columns(4)
+        cols[0].metric("Research results", run[2])
+        cols[1].metric("New shadow candidates", run[3])
+        cols[2].metric("Probability approved", run[4])
+        cols[3].metric("Runtime, sec", round(run[5] or 0, 1))
+        st.dataframe(
+            con.execute(
+                """SELECT experiment,secid,horizon,model,rows,balanced_accuracy,
+                baseline_balanced_accuracy,improvement,ci_low,ci_high,status
+                FROM clean_relearning_results WHERE run_id=? ORDER BY secid,horizon,experiment""",
+                [run[0]],
+            ).df(),
+            use_container_width=True,
+        )
+        st.warning("Все результаты research/shadow. Production и probability gate не изменены.")

@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from moex_analytics.dashboard.data_access import read_connection
+from moex_analytics.dashboard.data_access import read_connection, table_exists
 from moex_analytics.learning_cycle import learning_status
 
 
@@ -30,12 +30,31 @@ def render_basic() -> None:
             st.info("Полный контролируемый цикл обучения ещё не запускался.")
             return
         totals, cards = _data(con, status["latest"][0])
+        quality = None
+        if table_exists(con, "historical_quality_v2"):
+            eligible = con.execute(
+                "SELECT count(*) FROM historical_quality_v2 WHERE training_tier IN ('A','B')"
+            ).fetchone()[0]
+            historical = con.execute("SELECT count(DISTINCT secid) FROM moex_equity_eod").fetchone()[0]
+            confirmed = con.execute(
+                """SELECT count(*) FROM clean_relearning_results WHERE status IN
+                ('IMPROVED_BY_CLEAN_DATA','SHADOW_CANDIDATE') AND run_id=(SELECT run_id
+                FROM clean_relearning_runs WHERE status='completed' ORDER BY started_at DESC LIMIT 1)"""
+            ).fetchone()[0]
+            quality = ("хорошее" if eligible >= 200 else "среднее" if eligible >= 100 else "низкое",
+                       historical, eligible, confirmed)
     columns = st.columns(6)
     labels = ("Наблюдения", "Модели", "Live forecasts", "Matured", "Shadow", "Probability approved")
     for column, label, value in zip(columns, labels, totals, strict=True):
         column.metric(label, value)
     if totals[3] == 0:
         st.info("Live-обучение только началось.")
+    if quality:
+        st.write(f"Качество обучающей базы: **{quality[0]}**")
+        st.write(
+            f"Исторических бумаг: **{quality[1]}** · Пригодных для обучения: **{quality[2]}** · "
+            f"Подтверждённых predictive combinations: **{quality[3]}**"
+        )
     st.dataframe(
         cards[["secid", "horizon", "current_champion", "best_challenger", "live_n", "status"]],
         use_container_width=True,

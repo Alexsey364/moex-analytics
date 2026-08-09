@@ -501,6 +501,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("corporate-action-quality-status")
     sub.add_parser("build-high-quality-training-universe")
     sub.add_parser("training-universe-status")
+    sub.add_parser("run-clean-data-relearning")
+    sub.add_parser("clean-data-relearning-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -773,6 +775,17 @@ def main() -> None:
                 build_training_universe(con)
                 if args.command == "build-high-quality-training-universe"
                 else training_universe_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"run-clean-data-relearning", "clean-data-relearning-status"}:
+        from .training_quality import clean_relearning_status, run_clean_data_relearning
+
+        init_database()
+        with connection() as con:
+            result = (
+                run_clean_data_relearning(con, progress=print)
+                if args.command == "run-clean-data-relearning"
+                else clean_relearning_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {

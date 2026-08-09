@@ -66,4 +66,28 @@ CREATE TABLE IF NOT EXISTS breadth4_daily(
  momentum_dispersion DOUBLE,liquidity_dispersion DOUBLE,drawdown_gt_20 INTEGER,
  PRIMARY KEY(dataset_version,universe_kind,trade_date)
 );
+CREATE TABLE IF NOT EXISTS clean_relearning_runs(
+ run_id VARCHAR PRIMARY KEY,started_at TIMESTAMP,finished_at TIMESTAMP,status VARCHAR,
+ dataset_version VARCHAR,benchmark_hash VARCHAR,experiments INTEGER,results INTEGER,
+ shadow_candidates INTEGER,probability_approved INTEGER,runtime_seconds DOUBLE,
+ production_changes INTEGER,details_json JSON
+);
+CREATE TABLE IF NOT EXISTS clean_relearning_benchmarks(
+ benchmark_hash VARCHAR PRIMARY KEY,frozen_at TIMESTAMP,source_commits VARCHAR,
+ source_tables_json JSON,summary_json JSON,immutable BOOLEAN
+);
+CREATE TABLE IF NOT EXISTS clean_relearning_results(
+ run_id VARCHAR,experiment VARCHAR,secid VARCHAR,horizon INTEGER,model VARCHAR,
+ rows BIGINT,effective_n DOUBLE,folds INTEGER,baseline_balanced_accuracy DOUBLE,
+ balanced_accuracy DOUBLE,sign_accuracy DOUBLE,roc_auc DOUBLE,brier DOUBLE,
+ return_mae DOUBLE,return_rmse DOUBLE,rank_ic DOUBLE,spearman DOUBLE,
+ improvement DOUBLE,ci_low DOUBLE,ci_high DOUBLE,fold_wins INTEGER,
+ status VARCHAR,probability_allowed BOOLEAN,details_json JSON,
+ PRIMARY KEY(run_id,experiment,secid,horizon,model)
+);
+CREATE TABLE IF NOT EXISTS clean_relearning_impact(
+ run_id VARCHAR,impact_family VARCHAR,before_value DOUBLE,after_value DOUBLE,
+ difference DOUBLE,status VARCHAR,evidence_json JSON,
+ PRIMARY KEY(run_id,impact_family)
+);
 """
