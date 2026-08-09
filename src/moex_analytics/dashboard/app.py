@@ -98,6 +98,7 @@ advanced_pages = {
     "Корпоративные действия и качество цен": training_quality.render_corporate_actions,
     "Обучающая выборка": training_quality.render_training_universe,
     "Clean-universe relearning": training_quality.render_clean_relearning,
+    "Расширение quality universe": training_quality.render_quality_expansion,
     "Controlled Self-Learning Loop": learning_cycle.render_advanced,
     "Portfolio-aware learning": portfolio_learning.render,
     "Meta confidence и abstention": meta_learning.render,

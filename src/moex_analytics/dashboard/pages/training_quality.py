@@ -1,4 +1,4 @@
-"""Stage 31-33 data-quality research pages."""
+"""Stage 31-34 data-quality research pages."""
 
 import streamlit as st
 
@@ -86,3 +86,32 @@ def render_clean_relearning() -> None:
             use_container_width=True,
         )
         st.warning("Все результаты research/shadow. Production и probability gate не изменены.")
+
+
+def render_quality_expansion() -> None:
+    st.header("Кандидаты на повышение качества истории")
+    with read_connection() as con:
+        if not table_exists(con, "quality_expansion_runs"):
+            st.info("Stage 34 ещё не рассчитан.")
+            return
+        run = con.execute(
+            """SELECT run_id,tier_a_before,tier_b_before,tier_a_after,tier_b_after,
+            candidates,requests,validated_resolutions,stop_reason
+            FROM quality_expansion_runs ORDER BY started_at DESC LIMIT 1"""
+        ).fetchone()
+        cols = st.columns(4)
+        cols[0].metric("Tier A", run[3], run[3] - run[1])
+        cols[1].metric("Tier B", run[4], run[4] - run[2])
+        cols[2].metric("Очередь", run[5])
+        cols[3].metric("Official requests", run[6])
+        st.caption(f"Stop condition: {run[8]}; validated resolutions: {run[7]}")
+        st.dataframe(
+            con.execute(
+                """SELECT secid,current_tier,target_tier,blocking_issues_json,
+                missing_evidence_json,queue_status FROM quality_promotion_queue
+                WHERE run_id=? ORDER BY priority,secid""",
+                [run[0]],
+            ).df(),
+            use_container_width=True,
+        )
+        st.warning("MOEX metadata подтверждает контекст бумаги, но не коэффициент корректировки цены.")

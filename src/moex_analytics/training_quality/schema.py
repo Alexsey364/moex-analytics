@@ -90,4 +90,21 @@ CREATE TABLE IF NOT EXISTS clean_relearning_impact(
  difference DOUBLE,status VARCHAR,evidence_json JSON,
  PRIMARY KEY(run_id,impact_family)
 );
+CREATE TABLE IF NOT EXISTS quality_promotion_queue(
+ run_id VARCHAR,secid VARCHAR,current_tier VARCHAR,target_tier VARCHAR,priority INTEGER,
+ observations BIGINT,history_years DOUBLE,unresolved_episodes INTEGER,
+ blocking_issues_json JSON,missing_evidence_json JSON,queue_status VARCHAR,
+ created_at TIMESTAMP,PRIMARY KEY(run_id,secid)
+);
+CREATE TABLE IF NOT EXISTS quality_evidence_attempts(
+ attempt_id VARCHAR PRIMARY KEY,run_id VARCHAR,secid VARCHAR,source VARCHAR,endpoint VARCHAR,
+ retrieved_at TIMESTAMP,http_status INTEGER,document_hash VARCHAR,evidence_kind VARCHAR,
+ validation_status VARCHAR,details_json JSON
+);
+CREATE TABLE IF NOT EXISTS quality_expansion_runs(
+ run_id VARCHAR PRIMARY KEY,started_at TIMESTAMP,finished_at TIMESTAMP,status VARCHAR,
+ tier_a_before INTEGER,tier_b_before INTEGER,tier_a_after INTEGER,tier_b_after INTEGER,
+ candidates INTEGER,requests INTEGER,validated_resolutions INTEGER,unresolved_after INTEGER,
+ panel_version VARCHAR,stop_reason VARCHAR,production_changes INTEGER,details_json JSON
+);
 """
