@@ -66,3 +66,65 @@ def test_dashboard_launcher_classifies_port_owner(monkeypatch):
     assert launcher.classify_owner(
         (11, "python -m streamlit run C:/repo/moex_analytics/dashboard/app.py --server.port 8501")
     ) == "dashboard"
+
+
+def test_dashboard_launcher_marker_health_owner_and_main(tmp_path, monkeypatch, capsys):
+    import json
+    from types import SimpleNamespace
+
+    from moex_analytics.dashboard import launcher
+
+    marker = tmp_path / "dashboard.json"
+    launcher.mark_process(123, marker)
+    assert json.loads(marker.read_text(encoding="utf-8"))["pid"] == 123
+    assert launcher._marker_pid(marker) == 123
+    marker.write_text("{}", encoding="utf-8")
+    assert launcher._marker_pid(marker) is None
+    launcher._mark_pending(marker)
+    assert launcher._pending_is_fresh(marker)
+    marker.write_text("not-json", encoding="utf-8")
+    assert not launcher._pending_is_fresh(marker)
+
+    class HealthyResponse:
+        status = 200
+
+        def read(self):
+            return b"ok"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    monkeypatch.setattr(launcher.urllib.request, "urlopen", lambda *a, **k: HealthyResponse())
+    assert launcher._healthy()
+    monkeypatch.setattr(
+        launcher.urllib.request,
+        "urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(OSError("offline")),
+    )
+    assert not launcher._healthy()
+
+    calls = iter(
+        [
+            SimpleNamespace(stdout="TCP 127.0.0.1:8501 0.0.0.0:0 LISTENING 4321\n"),
+            SimpleNamespace(stdout="python -m streamlit run moex_analytics/dashboard/app.py 8501"),
+        ]
+    )
+    monkeypatch.setattr(launcher.subprocess, "run", lambda *a, **k: next(calls))
+    assert launcher.port_owner() == (
+        4321,
+        "python -m streamlit run moex_analytics/dashboard/app.py 8501",
+    )
+
+    monkeypatch.setattr(launcher, "port_owner", lambda: None)
+    monkeypatch.setattr(launcher, "_mark_pending", lambda: None)
+    assert launcher.main() == 3
+    monkeypatch.setattr(launcher, "port_owner", lambda: (4321, "foreign"))
+    monkeypatch.setattr(launcher, "classify_owner", lambda owner: "dashboard")
+    assert launcher.main() == 0
+    assert "уже работает" in capsys.readouterr().out
+    monkeypatch.setattr(launcher, "classify_owner", lambda owner: "other")
+    assert launcher.main() == 2
+    assert "PID: 4321" in capsys.readouterr().out

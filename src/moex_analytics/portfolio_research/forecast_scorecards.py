@@ -360,11 +360,27 @@ def forecast_track_record(con) -> dict:
 def forecast_status(con) -> dict:
     ensure_schema(con)
     total = con.execute("SELECT count(*) FROM forecast_registry").fetchone()[0]
-    matured = con.execute("SELECT count(*) FROM forecast_outcomes WHERE outcome_status='matured'").fetchone()[0]
-    pending = total - matured
+    outcome_counts = dict(
+        con.execute("SELECT outcome_status,count(*) FROM forecast_outcomes GROUP BY 1").fetchall()
+    )
+    matured = int(outcome_counts.get("matured", 0))
+    pending_outcomes = int(outcome_counts.get("pending", 0))
+    evaluated = con.execute(
+        """SELECT count(DISTINCT forecast_id) FROM forecast_outcomes
+        WHERE outcome_status='matured' AND evaluated_at IS NOT NULL"""
+    ).fetchone()[0]
+    pending = max(0, total - matured)
     versions = [row[0] for row in con.execute("SELECT DISTINCT model_version FROM forecast_registry ORDER BY 1").fetchall()]
-    return {"total": total, "matured": matured, "pending": pending, "model_versions": versions,
-            "live_status": _live_status(matured, None)}
+    return {
+        "total": total,
+        "matured": matured,
+        "pending": pending,
+        "pending_outcome_records": pending_outcomes,
+        "matured_outcome_records": matured,
+        "evaluated": evaluated,
+        "model_versions": versions,
+        "live_status": _live_status(matured, None),
+    }
 
 
 def update_forecast_scorecards(con) -> dict:

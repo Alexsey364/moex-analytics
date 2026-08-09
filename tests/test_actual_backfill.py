@@ -1,16 +1,23 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 import duckdb
 import pandas as pd
+import pytest
 
 from moex_analytics.actual_backfill.core import (
     _block_rows,
+    _counts,
+    _download,
     backfill_futures_specifications,
+    backfill_official_fx,
+    backfill_portfolio_dividends,
     backfill_universe_pilot,
     dividend_pair_consistency,
     ensure_schema,
     import_moex_annual_history,
+    resolve_external_sources,
 )
+from moex_analytics.macro.models import Observation
 
 
 def base_connection():
@@ -135,3 +142,96 @@ def test_dividend_pair_consistency_does_not_assume_parity():
     ])
     result = dividend_pair_consistency(frame, "SBER", "SBERP")
     assert result == {"dates": 2, "mismatches": 1, "consistent": False}
+
+
+def test_official_fx_dividend_and_external_source_summaries(monkeypatch):
+    con = base_connection()
+    con.execute(
+        """CREATE TABLE dividends(
+        canonical_secid VARCHAR,registry_close_date DATE,declared_date DATE,payment_date DATE,
+        dividend_per_share DOUBLE,currency VARCHAR,source VARCHAR,loaded_at TIMESTAMP,notes VARCHAR,
+        PRIMARY KEY(canonical_secid,registry_close_date))"""
+    )
+    con.execute(
+        """CREATE TABLE macro_observations(
+        series_id VARCHAR,observation_date DATE,release_date DATE,available_from TIMESTAMPTZ,
+        value DOUBLE,vintage VARCHAR,source VARCHAR,loaded_at TIMESTAMP,
+        PRIMARY KEY(series_id,observation_date,vintage));
+        CREATE TABLE macro_releases(
+        series_id VARCHAR,observation_date DATE,release_date DATE,available_from TIMESTAMPTZ,
+        vintage VARCHAR,source VARCHAR,loaded_at TIMESTAMP,
+        PRIMARY KEY(series_id,observation_date,vintage));"""
+    )
+    con.execute(
+        """CREATE TABLE external_factor_catalog(
+        factor_id VARCHAR PRIMARY KEY,family VARCHAR,source VARCHAR,endpoint VARCHAR,
+        license VARCHAR,access_class VARCHAR,timestamp_rule VARCHAR,pit_status VARCHAR,
+        current_status VARCHAR,notes VARCHAR,checked_at TIMESTAMP)"""
+    )
+    monkeypatch.setattr(
+        "moex_analytics.actual_backfill.core.cbr.CURRENCY_NAMES",
+        {"R01235": ("cbr_usd_rub", "USD/RUB")},
+    )
+    observation = Observation(
+        "cbr_usd_rub",
+        date(2026, 8, 7),
+        date(2026, 8, 7),
+        datetime(2026, 8, 7, tzinfo=UTC),
+        80.0,
+        "initial",
+        "CBR",
+    )
+    monkeypatch.setattr(
+        "moex_analytics.actual_backfill.core.cbr.download_currency",
+        lambda *args: [observation],
+    )
+    fx = backfill_official_fx(con, date(2026, 8, 7), date(2026, 8, 7))
+    assert fx["cbr_usd_rub"]["inserted"] == 1
+
+    class DividendClient:
+        def dividends(self, secid):
+            return [
+                {
+                    "canonical_secid": secid,
+                    "registry_close_date": date(2025, 7, 18),
+                    "dividend_per_share": 10.0,
+                    "currency": "RUB",
+                    "source": "MOEX",
+                }
+            ]
+
+    dividends = backfill_portfolio_dividends(con, DividendClient())
+    assert all(item["inserted"] == 1 for item in dividends.values())
+    sources = resolve_external_sources(con)
+    assert sources["paid_restricted"] == 2
+    assert con.execute("SELECT count(*) FROM external_factor_catalog").fetchone()[0] == 6
+
+
+def test_download_validation_counts_and_universe_failures():
+    con = base_connection()
+    assert _counts(con) == {"values": [], "documents": []}
+    content, mime = _download(Session(), {"url": "https://example.test/report"})
+    assert len(content) > 1000 and mime == "text/html"
+
+    class Small(Session):
+        def get(self, url, **kwargs):
+            return Response(b"small")
+
+    with pytest.raises(RuntimeError, match="too small"):
+        _download(Small(), {"url": "https://example.test/small"})
+
+    con.execute(
+        """INSERT INTO historical_equity_universe VALUES
+        ('EMPTY','EQBR',false,'common_share',NULL,NULL,'reg','RU0000000001'),
+        ('ERROR','EQBR',false,'common_share',NULL,NULL,'reg','RU0000000002')"""
+    )
+
+    class PartialClient:
+        def discover_history(self, secid):
+            if secid == "ERROR":
+                raise RuntimeError("source unavailable")
+            return []
+
+    result = backfill_universe_pilot(con, PartialClient(), 10)
+    assert result["errors"] == 1
+    assert result["rows_inserted"] == 0

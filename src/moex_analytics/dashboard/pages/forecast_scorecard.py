@@ -137,13 +137,18 @@ def render_quality():
     except Exception:
         st.info("Live-история пока не создана.")
         return
-    columns = st.columns(4)
+    columns = st.columns(6)
     columns[0].metric("Прогнозов", status["total"])
     columns[1].metric("Созрело", status["matured"])
     columns[2].metric("Ожидает", status["pending"])
     columns[3].metric("Статус", status["live_status"])
+    columns[4].metric("Pending outcome records", status["pending_outcome_records"])
+    columns[5].metric("Фактически оценено", status["evaluated"])
     if status["matured"] < 20:
-        st.warning("Live-история пока накапливается; статистические выводы преждевременны.")
+        st.warning(
+            "Live-история пока накапливается; pending outcome records не являются "
+            "созревшими результатами, статистические выводы преждевременны."
+        )
     st.dataframe(_q("SELECT * FROM forecast_scorecards ORDER BY horizon_sessions"),
                  use_container_width=True, hide_index=True)
     st.subheader("Последние ошибки")

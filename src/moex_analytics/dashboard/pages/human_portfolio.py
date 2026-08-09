@@ -26,6 +26,7 @@ from moex_analytics.portfolio_research.visual_assistant import (
     status_label,
     visual_status,
 )
+from moex_analytics.transparency import explain_current_decision
 
 st.markdown(
     """<style>
@@ -133,8 +134,7 @@ def _loads(value):
 
 
 def _human_table(frame):
-    return pd.DataFrame(
-        {
+    columns = {
             "Статус": frame.visual_status.map(status_label),
             "Акция": frame.secid,
             "Цена": frame.current_price.map(_money),
@@ -148,7 +148,23 @@ def _human_table(frame):
             "Изменилось": frame.status_change,
             "Действие": frame.visual_status.map(lambda value: STATUS[value][1]),
         }
+    if "investment_view" in frame:
+        columns["Инвестиционная оценка"] = frame.investment_view
+        columns["Портфельное ограничение"] = frame.allocation_view
+    return pd.DataFrame(columns)
+
+
+def _add_decision_views(frame):
+    result = frame.copy()
+    with connection(read_only=False) as con:
+        traces = {secid: explain_current_decision(con, secid) for secid in result.secid}
+    result["investment_view"] = result.secid.map(
+        lambda secid: traces[secid]["investment_view"]["label"]
     )
+    result["allocation_view"] = result.secid.map(
+        lambda secid: traces[secid]["portfolio_allocation_view"]["label"]
+    )
+    return result
 
 
 def render_today():
@@ -159,6 +175,7 @@ def render_today():
         return
     if report.stale_warning:
         st.warning(report.stale_warning)
+    frame = _add_decision_views(frame)
     daily = _q(
         "SELECT r.canonical_secid,r.total_return FROM daily_returns r "
         "JOIN (SELECT canonical_secid,max(trade_date) trade_date FROM daily_returns GROUP BY 1) x "
@@ -347,7 +364,11 @@ def _company_card(row, report_id):
     cols[3].metric("Вес", _pct(row.equity_weight))
     cols[4].metric("P/L", _pct(row.profit_loss_pct))
     cols[5].metric("Уверенность", confidence_dots(row.confidence_label))
-    st.markdown(f"## {status_label(row.visual_status)}")
+    with connection(read_only=False) as con:
+        trace = explain_current_decision(con, row.secid)
+    st.markdown(f"### Инвестиционная оценка: {trace['investment_view']['label']}")
+    st.markdown(f"### Портфельное ограничение: {trace['portfolio_allocation_view']['label']}")
+    st.caption(f"Общий action status: {status_label(row.visual_status)}")
     st.caption(row.status_change)
     items = [
         ("БЛИЖАЙШИЕ ДНИ", horizon_label(row.short_term_view)),

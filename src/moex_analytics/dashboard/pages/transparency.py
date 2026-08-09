@@ -15,14 +15,34 @@ from moex_analytics.transparency import (
 def render_data() -> None:
     st.header("Мои данные")
     st.caption("Что программа действительно хранит, когда проверяла и насколько это свежее.")
-    with connection(read_only=False) as con:
-        inventory = data_inventory(con, database_path(), save=True)
+    with connection(read_only=True) as con:
+        inventory = data_inventory(con, database_path(), save=False)
     totals = inventory["totals"]
-    cards = st.columns(4)
-    cards[0].metric("Торговых строк", f"{totals['eod_rows']:,}".replace(",", " "))
-    cards[1].metric("Исторических бумаг", totals["historical_securities"])
-    cards[2].metric("Фундаментальных значений", totals["fundamental_validated_values"])
-    cards[3].metric("Прогнозов", totals["forecasts"])
+    cards = st.columns(3)
+    cards[0].metric("Каталог", f"{totals['catalog_securities']:,} бумаг".replace(",", " "))
+    cards[1].metric("С историей торгов", f"{totals['securities_with_eod_history']:,} бумаг")
+    cards[2].metric(
+        "Всего дневных торговых наблюдений",
+        f"{totals['raw_eod_rows']:,}".replace(",", " "),
+    )
+    st.caption(
+        f"Из бумаг с историей: active {totals['active_securities_with_history']}, "
+        f"inactive {totals['inactive_securities_with_history']}. "
+        f"Canonical: {totals['canonical_eod_rows']:,}; "
+        f"текущий портфель: {totals['portfolio_eod_rows']:,}.".replace(",", " ")
+    )
+    st.subheader("Прогнозы и фактическая проверка")
+    forecast_cards = st.columns(5)
+    forecast_cards[0].metric("Прогнозов всего", totals["forecasts"])
+    forecast_cards[1].metric("Ожидают срока", totals["pending_forecasts"])
+    forecast_cards[2].metric("Созрело", totals["matured_forecasts"])
+    forecast_cards[3].metric("Pending outcome records", totals["pending_outcome_records"])
+    forecast_cards[4].metric("Фактически оценено", totals["evaluated_forecasts"])
+    if totals["matured_forecasts"] == 0:
+        st.info(
+            f"{totals['pending_outcome_records']} outcome-записей являются ожидающими, "
+            "а не уже проверенными результатами."
+        )
     size = inventory["storage"].get("duckdb_bytes")
     st.metric("Размер DuckDB", f"{size / 1024**3:.2f} GB" if size else "не рассчитан")
     st.subheader("Свежесть наборов")
@@ -37,8 +57,16 @@ def render_trace() -> None:
     with connection(read_only=False) as con:
         trace = explain_current_decision(con, secid)
         passport = instrument_data_passport(con, secid)
-    st.subheader(f"{secid}: {trace['final_status']}")
-    st.caption(f"Cutoff: {trace['cutoff']} · checked {trace['blocks_checked']} · used {trace['blocks_used']}")
+    st.subheader(secid)
+    st.markdown(f"### Инвестиционная оценка: {trace['investment_view']['label']}")
+    st.markdown(
+        f"### Портфельное ограничение: {trace['portfolio_allocation_view']['label']}"
+    )
+    st.caption(
+        f"Cutoff: {trace['cutoff']} · checked {trace['blocks_checked']} · "
+        f"used {trace['blocks_used']} · влияют {len(trace['influential'])} · "
+        f"informational {len(trace['informational'])} · excluded {len(trace['excluded'])}"
+    )
     positive, negative, neutral = st.columns(3)
     positive.success(
         "🟢 ЗА\n\n" + "\n\n".join(trace["summary"]["positive"] or ["Нет подтверждённых положительных блоков"])
@@ -55,6 +83,10 @@ def render_trace() -> None:
         st.json(passport)
     with st.expander("Что программа НЕ использовала и почему"):
         st.dataframe(pd.DataFrame(trace["excluded"]), use_container_width=True, hide_index=True)
+    with st.expander("Какие блоки влияют на инвестиционный вывод"):
+        st.write(trace["influential"])
+        st.caption("Информационный контекст, не меняющий статус:")
+        st.write(trace["informational"])
 
 
 def render_update_receipt() -> None:

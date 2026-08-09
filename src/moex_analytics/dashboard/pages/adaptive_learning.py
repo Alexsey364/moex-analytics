@@ -76,23 +76,27 @@ def render_basic() -> None:
         )
         return
     st.dataframe(latest, use_container_width=True, hide_index=True)
-    cards = _query("""SELECT secid,horizon,model,observations,delta_balanced_accuracy,
+    st.info(
+        "Исследовательские модели есть, но ни одна пока не прошла критерии "
+        "для публикации числовой вероятности."
+    )
+    cards = _query("""WITH latest AS (
+        SELECT run_id FROM adaptive_research_runs ORDER BY created_at DESC LIMIT 1)
+        SELECT secid,horizon,model,observations,balanced_accuracy,
+        baseline_balanced_accuracy,delta_balanced_accuracy,
         probability_allowed,confidence,status FROM adaptive_model_leaderboard
+        WHERE run_id=(SELECT run_id FROM latest)
         QUALIFY row_number() over(PARTITION BY secid,horizon ORDER BY delta_balanced_accuracy DESC)=1
         ORDER BY secid,horizon""")
     for row in cards.itertuples():
-        label = (
-            "кандидат подтверждается"
-            if row.status == "candidate"
-            else "качество ухудшилось"
-            if row.status == "rejected"
-            else "модель ещё учится"
-        )
+        label = "research-only challenger" if row.status != "rejected" else "не прошла OOS-критерии"
         st.subheader(f"{row.secid} / {row.horizon} сессий")
         st.write(
             f"Историческая OOS-проверка: {row.observations} наблюдений; "
-            f"преимущество к baseline {row.delta_balanced_accuracy:+.3f}."
+            f"balanced accuracy {row.balanced_accuracy:.3f}; baseline "
+            f"{row.baseline_balanced_accuracy:.3f}; улучшение {row.delta_balanced_accuracy:+.3f}."
         )
-        st.write(f"Уверенность evidence: {row.confidence:.0%}. {label}.")
+        gate = "нет" if row.probability_allowed else "да"
+        st.write(f"Статус: {row.status}; {label}. Probability gated: {gate}.")
         if not row.probability_allowed:
             st.caption("Числовая вероятность скрыта: calibration/OOS policy не выполнена.")

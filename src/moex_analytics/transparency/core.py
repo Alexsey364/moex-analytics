@@ -106,20 +106,51 @@ def freshness_inventory(con: Any, as_of: date | None = None) -> list[dict[str, A
 
 
 def data_inventory(con: Any, database_file: Path | None = None, save: bool = False) -> dict[str, Any]:
-    ensure_schema(con)
+    if save:
+        ensure_schema(con)
     tables = _tables(con)
     securities_table = (
         "historical_equity_universe" if "historical_equity_universe" in tables else "instruments"
     )
     active_column = "is_traded" if "is_traded" in _columns(con, securities_table) else "is_active"
+    history_table = "moex_equity_eod" if "moex_equity_eod" in tables else "canonical_daily_prices"
+    history_key = "secid" if history_table == "moex_equity_eod" else "canonical_secid"
+    history_securities = (
+        int(con.execute(f"SELECT count(DISTINCT {history_key}) FROM {history_table}").fetchone()[0])
+        if history_table in tables
+        else 0
+    )
+    active_history = inactive_history = 0
+    if history_table == "moex_equity_eod" and securities_table == "historical_equity_universe":
+        active_history, inactive_history = con.execute(
+            """SELECT count(DISTINCT e.secid) FILTER(WHERE u.is_traded),
+            count(DISTINCT e.secid) FILTER(WHERE NOT u.is_traded)
+            FROM moex_equity_eod e JOIN historical_equity_universe u USING(secid)"""
+        ).fetchone()
+    portfolio_rows = 0
+    if "portfolio_action_map" in tables and "canonical_daily_prices" in tables:
+        portfolio_rows = int(
+            con.execute(
+                """SELECT count(*) FROM canonical_daily_prices
+                WHERE canonical_secid IN (SELECT secid FROM portfolio_action_map
+                WHERE snapshot_id=(SELECT max(snapshot_id) FROM portfolio_action_map))"""
+            ).fetchone()[0]
+        )
     totals = {
-        "historical_securities": _count(con, securities_table),
+        "catalog_securities": _count(con, securities_table),
+        "securities_with_eod_history": history_securities,
+        "historical_securities": history_securities,
         "active_securities": _count(con, securities_table, f"WHERE coalesce({active_column},TRUE)")
         if active_column in _columns(con, securities_table)
         else _count(con, securities_table),
         "inactive_securities": _count(con, securities_table, f"WHERE NOT coalesce({active_column},TRUE)")
         if active_column in _columns(con, securities_table)
         else 0,
+        "active_securities_with_history": int(active_history),
+        "inactive_securities_with_history": int(inactive_history),
+        "raw_eod_rows": _count(con, history_table),
+        "canonical_eod_rows": _count(con, "canonical_daily_prices"),
+        "portfolio_eod_rows": portfolio_rows,
         "eod_rows": _count(con, "canonical_daily_prices"),
         "liquidity_observations": _count(con, "historical_liquidity_features"),
         "breadth_observations": _count(con, "market_breadth_daily"),
@@ -141,22 +172,36 @@ def data_inventory(con: Any, database_file: Path | None = None, save: bool = Fal
         "intraday_candles": _count(con, "intraday_candles"),
         "events": _count(con, "sber_events"),
         "forecasts": _count(con, "forecast_registry"),
-        "forecast_outcomes": _count(con, "forecast_outcomes"),
+        "forecast_outcome_records": _count(con, "forecast_outcomes"),
         "model_versions": _count(con, "adaptive_model_registry"),
     }
-    if "forecast_registry" in tables:
-        cols = _columns(con, "forecast_registry")
-        if "status" in cols:
-            totals["pending_forecasts"] = _count(con, "forecast_registry", "WHERE status='pending'")
-        elif "forecast_outcomes" in tables:
-            matured = con.execute(
-                """SELECT count(DISTINCT f.forecast_id) FROM forecast_registry f
-                JOIN forecast_outcomes o USING(forecast_id)"""
-            ).fetchone()[0]
-            totals["matured_forecasts"] = int(matured)
-            totals["pending_forecasts"] = max(0, totals["forecasts"] - int(matured))
-        else:
-            totals["pending_forecasts"] = totals["forecasts"]
+    if "forecast_registry" in tables and "forecast_outcomes" in tables:
+        forecast_semantics = con.execute(
+            """SELECT
+            count(DISTINCT f.forecast_id) FILTER(WHERE o.outcome_status='pending' OR o.forecast_id IS NULL),
+            count(DISTINCT f.forecast_id) FILTER(WHERE o.outcome_status='matured'),
+            count(o.forecast_id) FILTER(WHERE o.outcome_status='pending'),
+            count(o.forecast_id) FILTER(WHERE o.outcome_status='matured'),
+            count(DISTINCT f.forecast_id) FILTER(
+                WHERE o.outcome_status='matured' AND o.evaluated_at IS NOT NULL)
+            FROM forecast_registry f LEFT JOIN forecast_outcomes o USING(forecast_id)"""
+        ).fetchone()
+        keys = (
+            "pending_forecasts",
+            "matured_forecasts",
+            "pending_outcome_records",
+            "matured_outcome_records",
+            "evaluated_forecasts",
+        )
+        totals.update(dict(zip(keys, map(int, forecast_semantics), strict=True)))
+    elif "forecast_registry" in tables:
+        totals.update(
+            pending_forecasts=totals["forecasts"],
+            matured_forecasts=0,
+            pending_outcome_records=0,
+            matured_outcome_records=0,
+            evaluated_forecasts=0,
+        )
     root = database_file.parent.parent if database_file else None
 
     def directory_size(path: Path | None) -> int:
@@ -239,6 +284,28 @@ BLOCKS = (
     "Portfolio risk contribution",
     "Live model quality",
 )
+TRACE_VERSION = "decision-semantics-v2"
+
+
+def _investment_view(values: dict[str, Any], has_price: bool) -> tuple[str, str]:
+    """Market view independent of portfolio target/concentration constraints."""
+    if not values or not has_price:
+        return "insufficient_data", "⚪ Недостаточно данных"
+    fundamental = str(values.get("fundamental_confidence") or "").lower()
+    valuation = str(values.get("valuation_status") or "").lower()
+    regime = str(values.get("regime_status") or "").lower()
+    if any(token in regime for token in ("stress", "risk", "bear")):
+        return "cautious", "🟡 Умеренно интересно / ждать подтверждения"
+    if any(token in valuation for token in ("attractive", "undervalued", "cheap")) and fundamental in {
+        "high",
+        "medium",
+    }:
+        return "attractive", "🟢 Инвестиционно привлекательно"
+    if fundamental in {"low", "insufficient", "missing"} or any(
+        token in valuation for token in ("experimental", "overvalued", "insufficient", "missing")
+    ):
+        return "cautious", "🟡 Умеренно интересно / ждать подтверждения"
+    return "neutral", "🔵 Нейтральная инвестиционная оценка"
 
 
 def build_decision_trace(con: Any, secid: str) -> dict[str, Any]:
@@ -253,15 +320,35 @@ def build_decision_trace(con: Any, secid: str) -> dict[str, Any]:
     )
     values = dict(zip([d[0] for d in con.description], row, strict=False)) if row else {}
     cutoff = date.today()
-    final = str(values.get("target_status") or "insufficient_data")
+    passport = instrument_data_passport(con, secid)
+    investment_status, investment_label = _investment_view(values, passport["price"]["rows"] > 0)
+    allocation_status = str(values.get("target_status") or "target_not_set")
+    allocation_label = (
+        "⚪ Целевой вес не задан"
+        if allocation_status == "target_not_set"
+        else f"Портфельный статус: {allocation_status}"
+    )
+    final = investment_status
     source_snapshot = str(values.get("snapshot_id") or "none")
-    decision_id = hashlib.sha256(f"{cutoff}:{secid}:{source_snapshot}:{final}".encode()).hexdigest()[:24]
+    decision_id = hashlib.sha256(
+        f"{TRACE_VERSION}:{cutoff}:{secid}:{source_snapshot}:{final}:{allocation_status}".encode()
+    ).hexdigest()[:24]
     positive = json.loads(values.get("evidence_for_json") or "[]") if row else []
-    negative = json.loads(values.get("evidence_against_json") or "[]") if row else []
+    all_negative = json.loads(values.get("evidence_against_json") or "[]") if row else []
+    allocation_negative = [
+        item for item in all_negative if item in {"target_not_set", "equity concentration"}
+    ]
+    negative = [item for item in all_negative if item not in allocation_negative]
     summary = {
         "positive": positive,
         "negative": negative,
         "neutral": [],
+        "investment_view": {"status": investment_status, "label": investment_label},
+        "portfolio_allocation_view": {
+            "status": allocation_status,
+            "label": allocation_label,
+            "limitations": allocation_negative,
+        },
         "main_limitation": "limited or absent matured live forecasts",
         "rule_based": True,
         "probability_disclosed": False,
@@ -270,7 +357,6 @@ def build_decision_trace(con: Any, secid: str) -> dict[str, Any]:
         "INSERT OR IGNORE INTO transparency_decision_traces VALUES (?,?,?,?,?,?,current_timestamp,TRUE)",
         [decision_id, cutoff, secid, final, source_snapshot, json.dumps(summary, default=str)],
     )
-    passport = instrument_data_passport(con, secid)
     used_map = {
         "Technical": passport["price"]["rows"] > 0,
         "Liquidity": passport["price"]["rows"] > 0,
@@ -279,14 +365,26 @@ def build_decision_trace(con: Any, secid: str) -> dict[str, Any]:
         "Portfolio concentration": bool(row),
         "Portfolio risk contribution": bool(row),
     }
+    influential = {"Technical", "Market regime", "Breadth", "Volatility", "Fundamentals", "Dividend"}
+    excluded_reasons = {
+        "Relative strength": "relative-strength series is not connected to the current rule set",
+        "Yield curve": "yield-curve evidence is unavailable or not validated for this cutoff",
+        "Futures": "futures evidence is not validated for this instrument/cutoff",
+        "Valuation": "valuation evidence is incomplete or remains experimental",
+        "Events": "no validated current event evidence is connected to this decision",
+        "Live model quality": "no matured live sample is available for decision use",
+    }
     for block in BLOCKS:
         used = used_map.get(
             block, block in {"Market regime", "Breadth", "Volatility", "Drawdown", "Rates", "FX", "Sector"}
         )
+        affects_view = used and block in influential
         reason = (
-            "used by existing rule-based intelligence"
+            "affects the rule-based investment view"
+            if affects_view
+            else "available as informational context; does not change investment status"
             if used
-            else "excluded: unavailable, insufficient or not validated"
+            else excluded_reasons.get(block, "unavailable, insufficient or not validated")
         )
         status = (
             "supporting"
@@ -307,7 +405,7 @@ def build_decision_trace(con: Any, secid: str) -> dict[str, Any]:
                 None,
                 "limited" if used else "insufficient",
                 "up" if status == "supporting" else "down" if status == "opposing" else "neutral",
-                used,
+                affects_view,
                 None,
                 "see dataset freshness",
                 reason,
@@ -340,6 +438,8 @@ def build_decision_trace(con: Any, secid: str) -> dict[str, Any]:
         "cutoff": cutoff,
         "secid": secid,
         "final_status": final,
+        "investment_view": summary["investment_view"],
+        "portfolio_allocation_view": summary["portfolio_allocation_view"],
         "blocks_checked": len(BLOCKS),
         "blocks_used": sum(
             used_map.get(
@@ -358,8 +458,10 @@ def explain_current_decision(con: Any, secid: str) -> dict[str, Any]:
         FROM transparency_decision_blocks WHERE decision_id=? ORDER BY block_name""",
         [trace["decision_id"]],
     ).fetchall()
-    trace["used"] = [r[0] for r in rows if r[2]]
-    trace["excluded"] = [{"block": r[0], "reason": r[3]} for r in rows if not r[2]]
+    trace["used"] = [r[0] for r in rows if r[1] != "excluded"]
+    trace["influential"] = [r[0] for r in rows if r[2]]
+    trace["informational"] = [r[0] for r in rows if r[1] != "excluded" and not r[2]]
+    trace["excluded"] = [{"block": r[0], "reason": r[3]} for r in rows if r[1] == "excluded"]
     return trace
 
 
