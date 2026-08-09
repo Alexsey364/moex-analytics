@@ -483,6 +483,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("run-controlled-daily")
     sub.add_parser("run-full-learning-cycle")
     sub.add_parser("learning-status")
+    sub.add_parser("build-predictive-market-features")
+    sub.add_parser("predictive-expansion-market-status")
+    expand_equity = sub.add_parser("expand-predictive-equity-universe")
+    expand_equity.add_argument("--target", type=int)
+    sub.add_parser("predictive-expansion-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -663,6 +668,28 @@ def main() -> None:
                 result = run_full_learning_cycle(con, progress=print)
             else:
                 result = learning_status(con)
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"build-predictive-market-features", "predictive-expansion-market-status"}:
+        from .predictive_expansion import build_market_features, expansion_market_status
+
+        init_database()
+        with connection() as con:
+            result = (
+                build_market_features(con)
+                if args.command == "build-predictive-market-features"
+                else expansion_market_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"expand-predictive-equity-universe", "predictive-expansion-status"}:
+        from .predictive_expansion import expansion_status, run_equity_expansion
+
+        init_database()
+        with connection() as con:
+            result = (
+                run_equity_expansion(con, target=args.target)
+                if args.command == "expand-predictive-equity-universe"
+                else expansion_status(con)
+            )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
         "data-inventory",

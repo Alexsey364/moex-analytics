@@ -1,0 +1,23 @@
+version: stage30-v1
+targets:
+  minimum_securities: 1000
+  stretch_securities: 1500
+safety:
+  max_runtime_minutes: 480
+  max_requests: 12000
+  max_disk_growth_gb: 20
+  batch_jobs: 150
+  pages_per_job: 25
+  checkpoint_securities: 100
+  request_pause_seconds: 0.08
+  max_consecutive_failed_batches: 3
+  cpu_workers: 1
+pilots:
+  options_enabled: true
+  intraday_enabled: true
+  massive_options_backfill: false
+  massive_intraday_backfill: false
+research:
+  refresh_at_securities: 1000
+  refresh_at_matured_forecasts: 50
+  automatic_production_promotion: false
