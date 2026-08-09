@@ -490,6 +490,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("predictive-expansion-status")
     sub.add_parser("deepen-pit-fundamentals")
     sub.add_parser("predictive-fundamental-status")
+    sub.add_parser("build-predictive-market-context")
+    sub.add_parser("predictive-market-context-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -702,6 +704,17 @@ def main() -> None:
                 deepen_pit_fundamentals(con)
                 if args.command == "deepen-pit-fundamentals"
                 else fundamental_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"build-predictive-market-context", "predictive-market-context-status"}:
+        from .predictive_expansion import build_validated_market_context, market_context_status
+
+        init_database()
+        with connection() as con:
+            result = (
+                build_validated_market_context(con)
+                if args.command == "build-predictive-market-context"
+                else market_context_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {

@@ -86,4 +86,28 @@ CREATE TABLE IF NOT EXISTS stage30_dividend_pit(
  source VARCHAR,quality_status VARCHAR,calculated_at TIMESTAMP,
  PRIMARY KEY(secid,record_date,dps)
 );
+CREATE TABLE IF NOT EXISTS stage30_context_features(
+ observation_date DATE,series_id VARCHAR,feature_name VARCHAR,value DOUBLE,
+ available_from TIMESTAMP,source VARCHAR,pit_status VARCHAR,calculated_at TIMESTAMP,
+ PRIMARY KEY(observation_date,series_id,feature_name)
+);
+CREATE TABLE IF NOT EXISTS stage30_context_coverage(
+ dataset_family VARCHAR,series_id VARCHAR,rows BIGINT,earliest DATE,latest DATE,
+ source VARCHAR,license VARCHAR,pit_status VARCHAR,quality_status VARCHAR,
+ limitation VARCHAR,calculated_at TIMESTAMP,PRIMARY KEY(dataset_family,series_id)
+);
+CREATE TABLE IF NOT EXISTS stage30_futures_features(
+ trade_date DATE,secid VARCHAR,open_interest DOUBLE,oi_change DOUBLE,volume DOUBLE,
+ volume_oi DOUBLE,days_to_expiry INTEGER,units_validated BOOLEAN,basis DOUBLE,
+ quality_status VARCHAR,calculated_at TIMESTAMP,PRIMARY KEY(trade_date,secid)
+);
+CREATE TABLE IF NOT EXISTS stage30_pilot_evaluations(
+ pilot VARCHAR PRIMARY KEY,rows BIGINT,earliest DATE,latest DATE,usable_rows BIGINT,
+ oos_status VARCHAR,expansion_decision VARCHAR,limitation VARCHAR,calculated_at TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS stage30_context_runs(
+ run_id VARCHAR PRIMARY KEY,created_at TIMESTAMP,status VARCHAR,context_rows BIGINT,
+ coverage_series INTEGER,futures_rows BIGINT,options_rows BIGINT,intraday_rows BIGINT,
+ unresolved_corporate_actions BIGINT,details_json JSON,production_changes INTEGER
+);
 """
