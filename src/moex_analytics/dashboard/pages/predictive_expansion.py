@@ -21,7 +21,7 @@ def render() -> None:
         securities = _scalar(con, "SELECT count(DISTINCT secid) FROM moex_equity_eod")
         active = _scalar(
             con,
-            """SELECT count(*) FROM market_history_universe WHERE is_active
+            """SELECT count(*) FROM historical_equity_universe WHERE is_traded
             AND secid IN (SELECT DISTINCT secid FROM moex_equity_eod)""",
         )
         inactive = max(int(securities) - int(active), 0)
