@@ -30,6 +30,14 @@ REQUIRED_IMPORTS = (
 )
 
 
+def configure_console() -> None:
+    """Keep Russian launcher diagnostics readable under cmd.exe code page 65001."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def environment_errors() -> list[str]:
     errors = []
     if sys.version_info[:2] != (3, 12):
@@ -90,6 +98,7 @@ def start_dashboard() -> tuple[bool, str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_console()
     parser = argparse.ArgumentParser()
     parser.add_argument("--daily-only", action="store_true")
     parser.add_argument("--skip-daily", action="store_true", help=argparse.SUPPRESS)
