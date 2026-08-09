@@ -40,6 +40,7 @@ from moex_analytics.dashboard.pages import (
     historical_data,
     human_portfolio,
     instrument,
+    learning_cycle,
     macro,
     market_memory,
     meta_learning,
@@ -92,6 +93,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Controlled Self-Learning Loop": learning_cycle.render_advanced,
     "Portfolio-aware learning": portfolio_learning.render,
     "Meta confidence и abstention": meta_learning.render,
     "Калибровка и неопределённость": uncertainty.render,
@@ -239,6 +241,7 @@ advanced_pages = {
     "Методология": methodology.render,
 }
 basic_pages = {
+    "Обучение системы": learning_cycle.render_basic,
     "Сегодня": human_portfolio.render_today,
     "Мои данные": transparency.render_data,
     "Состояние рынка": trading_statistics.render_market_state,

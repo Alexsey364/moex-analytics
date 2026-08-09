@@ -480,6 +480,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("meta-learning-status")
     sub.add_parser("run-portfolio-learning")
     sub.add_parser("portfolio-learning-status")
+    sub.add_parser("run-controlled-daily")
+    sub.add_parser("run-full-learning-cycle")
+    sub.add_parser("learning-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -648,6 +651,18 @@ def main() -> None:
                 if args.command == "run-portfolio-learning"
                 else portfolio_learning_status(con)
             )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"run-controlled-daily", "run-full-learning-cycle", "learning-status"}:
+        from .learning_cycle import learning_status, run_controlled_daily, run_full_learning_cycle
+
+        init_database()
+        with connection() as con:
+            if args.command == "run-controlled-daily":
+                result = run_controlled_daily(con)
+            elif args.command == "run-full-learning-cycle":
+                result = run_full_learning_cycle(con, progress=print)
+            else:
+                result = learning_status(con)
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
         "data-inventory",
