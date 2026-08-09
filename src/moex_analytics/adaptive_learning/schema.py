@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS adaptive_fold_predictions(
  trade_date DATE,actual_direction INTEGER,predicted_direction INTEGER,
  probability DOUBLE,probability_allowed BOOLEAN,actual_return DOUBLE,
  predicted_return DOUBLE,q10 DOUBLE,q25 DOUBLE,q50 DOUBLE,q75 DOUBLE,q90 DOUBLE,
- regime VARCHAR,PRIMARY KEY(run_id,secid,horizon,scope,model,fold,trade_date)
+ interval_90_low DOUBLE,interval_90_high DOUBLE,regime VARCHAR,
+ PRIMARY KEY(run_id,secid,horizon,scope,model,fold,trade_date)
 );
 CREATE TABLE IF NOT EXISTS adaptive_model_leaderboard(
  run_id VARCHAR,secid VARCHAR,horizon INTEGER,scope VARCHAR,model VARCHAR,
@@ -56,7 +57,7 @@ CREATE TABLE IF NOT EXISTS adaptive_feature_importance(
 );
 CREATE TABLE IF NOT EXISTS adaptive_feature_ablation(
  run_id VARCHAR,secid VARCHAR,horizon INTEGER,family VARCHAR,
- full_score DOUBLE,ablated_score DOUBLE,delta DOUBLE,status VARCHAR,
+ full_score DOUBLE,ablated_score DOUBLE,delta DOUBLE,ci_low DOUBLE,ci_high DOUBLE,status VARCHAR,
  PRIMARY KEY(run_id,secid,horizon,family)
 );
 CREATE TABLE IF NOT EXISTS adaptive_ranking_results(

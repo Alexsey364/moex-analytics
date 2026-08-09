@@ -84,6 +84,14 @@ FAMILIES = {
 
 def ensure_schema(con) -> None:
     con.execute(DDL)
+    con.execute(
+        "ALTER TABLE adaptive_fold_predictions ADD COLUMN IF NOT EXISTS interval_90_low DOUBLE"
+    )
+    con.execute(
+        "ALTER TABLE adaptive_fold_predictions ADD COLUMN IF NOT EXISTS interval_90_high DOUBLE"
+    )
+    con.execute("ALTER TABLE adaptive_feature_ablation ADD COLUMN IF NOT EXISTS ci_low DOUBLE")
+    con.execute("ALTER TABLE adaptive_feature_ablation ADD COLUMN IF NOT EXISTS ci_high DOUBLE")
 
 
 def temporal_folds(n: int, horizon: int, folds: int = 3) -> list[dict]:
@@ -261,17 +269,17 @@ def _calibrate(validation_y, validation_p, test_p):
 def _specs(seed=22):
     def linear():
         return make_pipeline(
-            SimpleImputer(strategy="median"), StandardScaler(), LogisticRegression(C=0.2, max_iter=500)
+            SimpleImputer(strategy="median", keep_empty_features=True), StandardScaler(), LogisticRegression(C=0.2, max_iter=500)
         )
 
     return {
         "logistic_l2": (
             linear(),
-            make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), Ridge(alpha=5)),
+            make_pipeline(SimpleImputer(strategy="median", keep_empty_features=True), StandardScaler(), Ridge(alpha=5)),
         ),
         "elastic_net": (
             make_pipeline(
-                SimpleImputer(strategy="median"),
+                SimpleImputer(strategy="median", keep_empty_features=True),
                 StandardScaler(),
                 LogisticRegression(
                     C=0.15,
@@ -283,7 +291,7 @@ def _specs(seed=22):
             ),
             TransformedTargetRegressor(
                 regressor=make_pipeline(
-                    SimpleImputer(strategy="median"),
+                    SimpleImputer(strategy="median", keep_empty_features=True),
                     StandardScaler(),
                     ElasticNet(alpha=0.002, l1_ratio=0.25, max_iter=2000),
                 ),
@@ -292,7 +300,7 @@ def _specs(seed=22):
         ),
         "random_forest": (
             make_pipeline(
-                SimpleImputer(strategy="median"),
+                SimpleImputer(strategy="median", keep_empty_features=True),
                 RandomForestClassifier(
                     n_estimators=80,
                     max_depth=5,
@@ -303,7 +311,7 @@ def _specs(seed=22):
                 ),
             ),
             make_pipeline(
-                SimpleImputer(strategy="median"),
+                SimpleImputer(strategy="median", keep_empty_features=True),
                 RandomForestRegressor(
                     n_estimators=80,
                     max_depth=5,
@@ -316,7 +324,7 @@ def _specs(seed=22):
         ),
         "extra_trees": (
             make_pipeline(
-                SimpleImputer(strategy="median"),
+                SimpleImputer(strategy="median", keep_empty_features=True),
                 ExtraTreesClassifier(
                     n_estimators=80,
                     max_depth=6,
@@ -327,7 +335,7 @@ def _specs(seed=22):
                 ),
             ),
             make_pipeline(
-                SimpleImputer(strategy="median"),
+                SimpleImputer(strategy="median", keep_empty_features=True),
                 ExtraTreesRegressor(
                     n_estimators=80,
                     max_depth=6,
@@ -340,7 +348,7 @@ def _specs(seed=22):
         ),
         "hist_gradient": (
             make_pipeline(
-                SimpleImputer(strategy="median"),
+                SimpleImputer(strategy="median", keep_empty_features=True),
                 HistGradientBoostingClassifier(
                     max_iter=80,
                     max_leaf_nodes=15,
@@ -350,7 +358,7 @@ def _specs(seed=22):
                 ),
             ),
             make_pipeline(
-                SimpleImputer(strategy="median"),
+                SimpleImputer(strategy="median", keep_empty_features=True),
                 HistGradientBoostingRegressor(
                     max_iter=80,
                     max_leaf_nodes=15,
@@ -362,12 +370,12 @@ def _specs(seed=22):
         ),
         "knn": (
             make_pipeline(
-                SimpleImputer(strategy="median"),
+                SimpleImputer(strategy="median", keep_empty_features=True),
                 StandardScaler(),
                 KNeighborsClassifier(n_neighbors=35, weights="distance"),
             ),
             make_pipeline(
-                SimpleImputer(strategy="median"),
+                SimpleImputer(strategy="median", keep_empty_features=True),
                 StandardScaler(),
                 KNeighborsRegressor(n_neighbors=35, weights="distance"),
             ),
@@ -422,7 +430,7 @@ def _fit_instrument(con, run_id, secid, horizon, frame, features, scope="per_ins
             p, slope, intercept = _calibrate(y[va], vp, raw)
             pred = reg.predict(x[te])
             residual = r[va] - reg.predict(x[va])
-            quantiles = np.quantile(residual, [0.1, 0.25, 0.5, 0.75, 0.9])
+            quantiles = np.quantile(residual, [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95])
             q = pred[:, None] + quantiles[None, :]
             base = np.repeat(y[tr].mean(), len(te))
             baseline_rate.extend(base)
@@ -461,7 +469,11 @@ def _fit_instrument(con, run_id, secid, horizon, frame, features, scope="per_ins
             )
             for i, index in enumerate(te):
                 con.execute(
-                    "INSERT INTO adaptive_fold_predictions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    """INSERT INTO adaptive_fold_predictions(
+                    run_id,secid,horizon,scope,model,fold,trade_date,actual_direction,
+                    predicted_direction,probability,probability_allowed,actual_return,
+                    predicted_return,q10,q25,q50,q75,q90,interval_90_low,interval_90_high,regime)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     [
                         run_id,
                         secid,
@@ -476,7 +488,9 @@ def _fit_instrument(con, run_id, secid, horizon, frame, features, scope="per_ins
                         False,
                         float(r[index]),
                         float(pred[i]),
-                        *map(float, q[i]),
+                        *map(float, q[i][1:6]),
+                        float(q[i][0]),
+                        float(q[i][6]),
                         sample.regime.iloc[index],
                     ],
                 )
@@ -531,7 +545,7 @@ def _fit_pooled_loo(con, run_id, heldout, horizon, frames, features):
         p, slope, intercept = _calibrate(yva, vp, raw)
         pred = reg.predict(xte)
         residual = rva - reg.predict(xva)
-        quantiles = np.quantile(residual, [0.1, 0.25, 0.5, 0.75, 0.9])
+        quantiles = np.quantile(residual, [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95])
         q = pred[:, None] + quantiles[None, :]
         base = np.repeat(ytr.mean(), len(yte))
         result = ModelResult(
@@ -571,7 +585,11 @@ def _fit_pooled_loo(con, run_id, heldout, horizon, frames, features):
         )
         for i, day in enumerate(test.index):
             con.execute(
-                "INSERT INTO adaptive_fold_predictions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                """INSERT INTO adaptive_fold_predictions(
+                run_id,secid,horizon,scope,model,fold,trade_date,actual_direction,
+                predicted_direction,probability,probability_allowed,actual_return,
+                predicted_return,q10,q25,q50,q75,q90,interval_90_low,interval_90_high,regime)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 [
                     run_id,
                     heldout,
@@ -586,7 +604,9 @@ def _fit_pooled_loo(con, run_id, heldout, horizon, frames, features):
                     False,
                     float(rte[i]),
                     float(pred[i]),
-                    *map(float, q[i]),
+                    *map(float, q[i][1:6]),
+                    float(q[i][0]),
+                    float(q[i][6]),
                     test.regime.iloc[i],
                 ],
             )
@@ -609,7 +629,10 @@ def _save_result(con, run_id, secid, horizon, scope, result, base_y, base_p, fea
     ll = float(log_loss(y, np.clip(p, 1e-6, 1 - 1e-6)))
     ece = _ece(y, p)
     qs = np.asarray(result.q)
-    coverage = [float(np.mean((a >= qs[:, i]) & (a <= qs[:, j]))) for i, j in ((1, 3), (0, 4), (0, 4))]
+    coverage = [
+        float(np.mean((a >= qs[:, i]) & (a <= qs[:, j])))
+        for i, j in ((2, 4), (1, 5), (0, 6))
+    ]
     regime_scores = []
     for regime in set(result.regimes):
         mask = np.asarray(result.regimes) == regime
@@ -626,8 +649,14 @@ def _save_result(con, run_id, secid, horizon, scope, result, base_y, base_p, fea
         if any(v is not None for v in result.intercepts)
         else None
     )
+    live = con.execute(
+        """SELECT count(*),avg(o.direction_correct::int) FROM forecast_registry f JOIN forecast_outcomes o USING(forecast_id)
+        WHERE f.secid=? AND f.horizon_sessions=? AND o.outcome_status='matured'""",
+        [secid, horizon],
+    ).fetchone()
     allowed = bool(
         len(y) >= 200
+        and live[0] >= 20
         and brier < bbrier
         and auc >= 0.55
         and ece <= 0.08
@@ -655,6 +684,7 @@ def _save_result(con, run_id, secid, horizon, scope, result, base_y, base_p, fea
         if delta >= -0.01
         else "rejected"
     )
+    confidence = min(confidence, {"rejected": 0.35, "experimental": 0.60}.get(status, 1.0))
     details = {
         "probability_gate": {
             "sufficient_oos": len(y) >= 200,
@@ -662,10 +692,12 @@ def _save_result(con, run_id, secid, horizon, scope, result, base_y, base_p, fea
             "auc": auc,
             "ece": ece,
             "fold_wins": result.wins,
+            "live_n": live[0],
+            "sufficient_live": live[0] >= 20,
         },
         "automatic_promotion": False,
         "neutral_policy": "excluded from binary fit; stored separately",
-        "interval_note": "empirical validation residual quantiles; 80/90 share outer q10-q90 in v1",
+        "interval_note": "empirical validation residual q05/q10/q25/q50/q75/q90/q95",
     }
     con.execute(
         "INSERT INTO adaptive_model_leaderboard VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -700,14 +732,14 @@ def _save_result(con, run_id, secid, horizon, scope, result, base_y, base_p, fea
             json.dumps(details),
         ],
     )
+    con.execute(
+        """UPDATE adaptive_fold_predictions SET probability_allowed=?
+        WHERE run_id=? AND secid=? AND horizon=? AND scope=? AND model=?""",
+        [allowed, run_id, secid, horizon, scope, result.model],
+    )
     registry_id = hashlib.sha256(f"{run_id}:{secid}:{horizon}:{scope}:{result.model}".encode()).hexdigest()[
         :24
     ]
-    live = con.execute(
-        """SELECT count(*),avg(o.direction_correct::int) FROM forecast_registry f JOIN forecast_outcomes o USING(forecast_id)
-        WHERE f.secid=? AND f.horizon_sessions=? AND o.outcome_status='matured'""",
-        [secid, horizon],
-    ).fetchone()
     oos = {"balanced_accuracy": ba, "roc_auc": auc, "brier": brier, "delta": delta}
     con.execute(
         "INSERT INTO adaptive_model_registry VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,current_timestamp,TRUE,FALSE)",
@@ -825,6 +857,39 @@ def _ranking(con, run_id, horizon, frames):
         )
 
 
+def _ablate_families(con, run_id, secid, horizon, frame, features):
+    """Train-only, common-sample family ablation with fold-level uncertainty."""
+    target = _add_targets(frame, horizon, sector_col=SECTOR.get(secid))
+    sample = target[target.direction >= 0].dropna(subset=["forward_return", *features])
+    folds = temporal_folds(len(sample), horizon)
+    if not folds:
+        return
+    y = sample.direction.to_numpy(int)
+    x = sample[features]
+    families = ("technical", "breadth", "liquidity", "rates", "fx", "volatility")
+    for family in families:
+        reduced = [f for f in features if FAMILIES[f] != family]
+        differences = []
+        for fold in folds:
+            tr, te = fold["train"], fold["test"]
+            full = _specs()["logistic_l2"][0].fit(x.iloc[tr], y[tr])
+            cut = _specs()["logistic_l2"][0].fit(x.iloc[tr][reduced], y[tr])
+            full_ba = balanced_accuracy_score(y[te], full.predict(x.iloc[te]))
+            cut_ba = balanced_accuracy_score(y[te], cut.predict(x.iloc[te][reduced]))
+            differences.append(float(full_ba - cut_ba))
+        effect = float(np.mean(differences))
+        rng = np.random.default_rng(22)
+        boot = [float(np.mean(rng.choice(differences, len(differences)))) for _ in range(1000)]
+        lo, hi = np.quantile(boot, [0.025, 0.975])
+        status = "useful" if lo > 0 else "harmful" if hi < 0 else "inconclusive"
+        con.execute(
+            """INSERT INTO adaptive_feature_ablation(
+            run_id,secid,horizon,family,full_score,ablated_score,delta,ci_low,ci_high,status)
+            VALUES (?,?,?,?,NULL,NULL,?,?,?,?)""",
+            [run_id, secid, horizon, family, effect, float(lo), float(hi), status],
+        )
+
+
 def research_predictive_models(con) -> dict:
     started = time.perf_counter()
     ensure_schema(con)
@@ -932,26 +997,7 @@ def research_predictive_models(con) -> dict:
                 )
                 model_count += 1
                 fold_count += result.folds
-            best = max(
-                (x for x in leaderboard if x["secid"] == secid and x["horizon"] == horizon),
-                key=lambda x: x["delta"],
-                default=None,
-            )
-            if best:
-                for family in ("technical", "breadth", "liquidity", "rates", "fx", "volatility"):
-                    con.execute(
-                        "INSERT INTO adaptive_feature_ablation VALUES (?,?,?,?,?,?,?,?)",
-                        [
-                            run_id,
-                            secid,
-                            horizon,
-                            family,
-                            best["delta"],
-                            None,
-                            None,
-                            "scheduled_common_sample_research",
-                        ],
-                    )
+            _ablate_families(con, run_id, secid, horizon, frame, features)
     for horizon in HORIZONS:
         for heldout in INSTRUMENTS:
             for result, by, bp in _fit_pooled_loo(con, run_id, heldout, horizon, frames, features):
@@ -988,12 +1034,15 @@ def research_status(con) -> dict:
     latest = con.execute(
         "SELECT run_id,dataset_version,created_at,status,runtime_seconds,rows_total,models_trained,folds FROM adaptive_research_runs ORDER BY created_at DESC LIMIT 1"
     ).fetchone()
+    run_id = latest[0] if latest else ""
     return {
         "latest": latest,
         "statuses": con.execute(
-            "SELECT status,count(*) FROM adaptive_model_leaderboard GROUP BY 1 ORDER BY 1"
+            "SELECT status,count(*) FROM adaptive_model_leaderboard WHERE run_id=? GROUP BY 1 ORDER BY 1",
+            [run_id],
         ).fetchall(),
         "promotion": con.execute(
-            "SELECT recommendation,count(*) FROM adaptive_promotion_review GROUP BY 1 ORDER BY 1"
+            "SELECT recommendation,count(*) FROM adaptive_promotion_review WHERE run_id=? GROUP BY 1 ORDER BY 1",
+            [run_id],
         ).fetchall(),
     }
