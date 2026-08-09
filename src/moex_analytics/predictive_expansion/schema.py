@@ -68,4 +68,22 @@ CREATE TABLE IF NOT EXISTS stage30_data_value_ledger(
  status VARCHAR,evidence VARCHAR,created_at TIMESTAMP,
  PRIMARY KEY(run_id,dataset_family)
 );
+CREATE TABLE IF NOT EXISTS stage30_fundamental_runs(
+ run_id VARCHAR PRIMARY KEY,started_at TIMESTAMP,finished_at TIMESTAMP,status VARCHAR,
+ issuers INTEGER,documents INTEGER,validated_observations INTEGER,validated_periods INTEGER,
+ dividends INTEGER,errors INTEGER,details_json JSON,production_changes INTEGER
+);
+CREATE TABLE IF NOT EXISTS stage30_fundamental_coverage(
+ issuer VARCHAR PRIMARY KEY,secids_json JSON,documents INTEGER,validated_observations INTEGER,
+ validated_periods INTEGER,earliest_period DATE,latest_period DATE,latest_publication_date DATE,
+ missingness_status VARCHAR,pit_status VARCHAR,coverage_status VARCHAR,limitation VARCHAR,
+ calculated_at TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS stage30_dividend_pit(
+ secid VARCHAR,record_date DATE,publication_date DATE,available_from TIMESTAMP,dps DOUBLE,
+ currency VARCHAR,close_on_available_date DOUBLE,dividend_yield_pit DOUBLE,
+ dividend_growth DOUBLE,cut_flag BOOLEAN,payment_status VARCHAR,share_class VARCHAR,
+ source VARCHAR,quality_status VARCHAR,calculated_at TIMESTAMP,
+ PRIMARY KEY(secid,record_date,dps)
+);
 """

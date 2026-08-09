@@ -488,6 +488,8 @@ def build_parser() -> argparse.ArgumentParser:
     expand_equity = sub.add_parser("expand-predictive-equity-universe")
     expand_equity.add_argument("--target", type=int)
     sub.add_parser("predictive-expansion-status")
+    sub.add_parser("deepen-pit-fundamentals")
+    sub.add_parser("predictive-fundamental-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -689,6 +691,17 @@ def main() -> None:
                 run_equity_expansion(con, target=args.target)
                 if args.command == "expand-predictive-equity-universe"
                 else expansion_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"deepen-pit-fundamentals", "predictive-fundamental-status"}:
+        from .predictive_expansion import deepen_pit_fundamentals, fundamental_status
+
+        init_database()
+        with connection() as con:
+            result = (
+                deepen_pit_fundamentals(con)
+                if args.command == "deepen-pit-fundamentals"
+                else fundamental_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
