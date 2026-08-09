@@ -495,6 +495,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("build-predictive-cross-sectional-dataset")
     sub.add_parser("measure-predictive-data-value")
     sub.add_parser("predictive-research-status")
+    predictive_run = sub.add_parser("run-predictive-data-expansion")
+    predictive_run.add_argument("--target", type=int)
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -739,6 +741,13 @@ def main() -> None:
                 result = measure_data_value(con)
             else:
                 result = research_status(con)
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command == "run-predictive-data-expansion":
+        from .predictive_expansion import run_predictive_data_expansion
+
+        init_database()
+        with connection() as con:
+            result = run_predictive_data_expansion(con, target=args.target, progress=print)
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
         "data-inventory",

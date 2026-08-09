@@ -3,6 +3,7 @@
 from .expansion import expansion_status, run_equity_expansion
 from .fundamentals import deepen_pit_fundamentals, fundamental_status
 from .market import build_market_features, expansion_market_status
+from .orchestrator import run_predictive_data_expansion
 from .research import build_cross_sectional_dataset, measure_data_value, research_status
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "measure_data_value",
     "research_status",
     "run_equity_expansion",
+    "run_predictive_data_expansion",
 ]
 from .context import build_validated_market_context, market_context_status
