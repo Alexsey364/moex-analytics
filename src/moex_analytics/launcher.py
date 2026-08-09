@@ -94,6 +94,9 @@ def start_dashboard() -> tuple[bool, str]:
     )
     if not wait_until_healthy():
         return False, "Dashboard не ответил на health-check за 30 секунд."
+    started_owner = port_launcher.port_owner()
+    if started_owner is not None:
+        port_launcher.mark_process(started_owner[0])
     return True, "Dashboard запущен: http://localhost:8501"
 
 
