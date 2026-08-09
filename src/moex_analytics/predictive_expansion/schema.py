@@ -110,4 +110,21 @@ CREATE TABLE IF NOT EXISTS stage30_context_runs(
  coverage_series INTEGER,futures_rows BIGINT,options_rows BIGINT,intraday_rows BIGINT,
  unresolved_corporate_actions BIGINT,details_json JSON,production_changes INTEGER
 );
+CREATE TABLE IF NOT EXISTS stage30_cross_sectional_runs(
+ run_id VARCHAR PRIMARY KEY,created_at TIMESTAMP,status VARCHAR,security_count INTEGER,
+ rows BIGINT,date_from DATE,date_to DATE,feature_version VARCHAR,target_version VARCHAR,
+ frozen BOOLEAN,production_changes INTEGER,details_json JSON
+);
+CREATE TABLE IF NOT EXISTS stage30_cross_sectional_dataset(
+ run_id VARCHAR,trade_date DATE,secid VARCHAR,close DOUBLE,turnover_20 DOUBLE,
+ liquidity_percentile DOUBLE,return_5 DOUBLE,return_20 DOUBLE,return_60 DOUBLE,
+ return_120 DOUBLE,excess_5 DOUBLE,excess_20 DOUBLE,excess_60 DOUBLE,excess_120 DOUBLE,
+ rank_5 DOUBLE,rank_20 DOUBLE,rank_60 DOUBLE,rank_120 DOUBLE,
+ PRIMARY KEY(run_id,trade_date,secid)
+);
+CREATE TABLE IF NOT EXISTS stage30_ablation_runs(
+ run_id VARCHAR PRIMARY KEY,created_at TIMESTAMP,status VARCHAR,security_count INTEGER,
+ families_evaluated INTEGER,useful INTEGER,experimental INTEGER,rejected INTEGER,
+ insufficient INTEGER,production_changes INTEGER,details_json JSON
+);
 """

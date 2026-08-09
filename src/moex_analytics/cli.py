@@ -492,6 +492,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("predictive-fundamental-status")
     sub.add_parser("build-predictive-market-context")
     sub.add_parser("predictive-market-context-status")
+    sub.add_parser("build-predictive-cross-sectional-dataset")
+    sub.add_parser("measure-predictive-data-value")
+    sub.add_parser("predictive-research-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -716,6 +719,26 @@ def main() -> None:
                 if args.command == "build-predictive-market-context"
                 else market_context_status(con)
             )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {
+        "build-predictive-cross-sectional-dataset",
+        "measure-predictive-data-value",
+        "predictive-research-status",
+    }:
+        from .predictive_expansion import (
+            build_cross_sectional_dataset,
+            measure_data_value,
+            research_status,
+        )
+
+        init_database()
+        with connection() as con:
+            if args.command == "build-predictive-cross-sectional-dataset":
+                result = build_cross_sectional_dataset(con)
+            elif args.command == "measure-predictive-data-value":
+                result = measure_data_value(con)
+            else:
+                result = research_status(con)
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
         "data-inventory",
