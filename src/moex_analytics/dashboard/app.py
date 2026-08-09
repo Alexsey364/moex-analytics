@@ -27,6 +27,7 @@ from moex_analytics.dashboard.data_access import DatabaseUnavailable, database_s
 from moex_analytics.dashboard.launcher import mark_current_process
 from moex_analytics.dashboard.navigation import group_advanced_pages, navigation_pages
 from moex_analytics.dashboard.pages import (
+    adaptive_learning,
     alpha_research,
     analytics,
     critical_data,
@@ -84,6 +85,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Обучение моделей": adaptive_learning.render_advanced,
     "Статистика торгов": trading_statistics.render_trading_statistics,
     "Покрытие исторических данных": historical_data.render_advanced,
     "Model Track Record": forecast_scorecard.render_track_record,
@@ -229,6 +231,7 @@ basic_pages = {
     "Акции": human_portfolio.render_stocks,
     "Спросить про портфель": human_portfolio.render_ask,
     "Как программа прогнозирует": forecast_scorecard.render_basic,
+    "Как программа учится": adaptive_learning.render_basic,
     "Качество прогнозов": forecast_scorecard.render_quality,
     "Дивиденды": human_portfolio.render_dividends,
     "Риски": human_portfolio.render_risks,

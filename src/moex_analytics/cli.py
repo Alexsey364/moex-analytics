@@ -465,6 +465,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("historical-market-backfill-status")
     sub.add_parser("historical-market-backfill-pause")
     sub.add_parser("rebuild-breadth-after-backfill")
+    sub.add_parser("research-predictive-models")
+    sub.add_parser("predictive-learning-status")
     for name in (
         "validate-portfolio-alpha",
         "validate-cross-instrument-factors",
@@ -555,6 +557,17 @@ def main() -> None:
                    FROM instruments i ORDER BY i.secid"""
             ).fetchall()
             print({"rows": row_counts(con), "details": details})
+    elif args.command in {"research-predictive-models", "predictive-learning-status"}:
+        from .adaptive_learning import research_predictive_models, research_status
+
+        init_database()
+        with connection() as con:
+            result = (
+                research_predictive_models(con)
+                if args.command == "research-predictive-models"
+                else research_status(con)
+            )
+            print(result)
     elif args.command in {
         "calculate-features",
         "calculate-regimes",

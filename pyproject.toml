@@ -18,6 +18,7 @@ dependencies = [
   "streamlit>=1.40,<2",
   "plotly>=5.24,<7",
   "openpyxl>=3.1,<4",
+  "scikit-learn>=1.6,<2",
 ]
 
 [project.optional-dependencies]
@@ -82,6 +83,8 @@ select = ["E", "F", "I", "B", "UP", "RUF"]
 "tests/test_deep_backfill.py" = ["E501"]
 "tests/test_historical_data.py" = ["E501"]
 "tests/test_actual_backfill.py" = ["E501"]
+"src/moex_analytics/adaptive_learning/**/*.py" = ["E501", "RUF001"]
+"tests/test_adaptive_learning.py" = ["E501"]
 "src/moex_analytics/unblocked_experiment/**/*.py" = ["E501", "E701", "E702", "RUF001"]
 "src/moex_analytics/alpha_research/**/*.py" = ["E501", "E701", "E702", "RUF001", "RUF007", "RUF059"]
 "src/moex_analytics/portfolio_research/**/*.py" = ["E501", "E701", "E702", "RUF001", "RUF005", "RUF059"]
