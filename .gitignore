@@ -16,6 +16,8 @@ build/
 data/raw/*
 !data/raw/.gitkeep
 data/processed/*
+data/update_status.local.json
+data/update_cancel.local.flag
 !data/processed/.gitkeep
 data/local/*
 !data/local/.gitkeep
