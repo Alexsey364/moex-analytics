@@ -61,9 +61,11 @@ from moex_analytics.dashboard.pages import (
     uncertainty,
     update_data,
 )
+from moex_analytics.dashboard.visual_semantics import theme_css
 from moex_analytics.database import database_path, init_database
 
 st.set_page_config(page_title="Аналитика рынка MOEX", layout="wide")
+st.markdown(theme_css(), unsafe_allow_html=True)
 mark_current_process()
 st.title("Аналитика рынка MOEX")
 

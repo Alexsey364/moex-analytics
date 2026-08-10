@@ -41,12 +41,28 @@ def render_basic() -> None:
                 ('IMPROVED_BY_CLEAN_DATA','SHADOW_CANDIDATE') AND run_id=(SELECT run_id
                 FROM clean_relearning_runs WHERE status='completed' ORDER BY started_at DESC LIMIT 1)"""
             ).fetchone()[0]
-            quality = ("хорошее" if eligible >= 200 else "среднее" if eligible >= 100 else "низкое",
-                       historical, eligible, confirmed)
+            quality = (
+                "хорошее" if eligible >= 200 else "среднее" if eligible >= 100 else "низкое",
+                historical,
+                eligible,
+                confirmed,
+            )
     columns = st.columns(6)
     labels = ("Наблюдения", "Модели", "Live forecasts", "Matured", "Shadow", "Probability approved")
     for column, label, value in zip(columns, labels, totals, strict=True):
         column.metric(label, value)
+    st.subheader("Накопление проверяемых данных")
+    progress_items = (
+        ("Исторические наблюдения", totals[0]),
+        ("Проверенные модели", totals[1]),
+        ("Сохранённые live-прогнозы", totals[2]),
+        ("Созревшие исходы", totals[3]),
+        ("Shadow-модели", totals[4]),
+        ("Разрешённые вероятности", totals[5]),
+    )
+    for label, value in progress_items:
+        st.write(f"**{label}: {value}**")
+    st.caption("Это абсолютные объёмы, не процент готовности и не обещание качества модели.")
     if totals[3] == 0:
         st.info("Live-обучение только началось.")
     if quality:

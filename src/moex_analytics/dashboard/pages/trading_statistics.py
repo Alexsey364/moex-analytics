@@ -2,10 +2,13 @@
 
 import streamlit as st
 
+from moex_analytics.dashboard.investor_visuals import breadth_figure
+from moex_analytics.dashboard.visual_semantics import accessible_label, token_for
 from moex_analytics.database import connection
 from moex_analytics.market_history import ensure_schema
 
 
+@st.cache_data(ttl=60, show_spinner=False)
 def _tables():
     with connection(read_only=False) as con:
         ensure_schema(con)
@@ -30,18 +33,31 @@ def render_market_state() -> None:
         st.info("Недостаточно загруженной истории для расчёта ширины рынка.")
         return
     last = breadth.iloc[0]
+    period = st.radio("Период", ("1М", "3М", "1Г"), horizontal=True, index=1)
+    window = {"1М": 23, "3М": 66, "1Г": 250}[period]
     cols = st.columns(4)
     cols[0].metric("Торгуемых бумаг", int(last.tradable_count))
     cols[1].metric("Растут / падают", f"{int(last.advancing)} / {int(last.declining)}")
     cols[2].metric("Выше SMA50", f"{100 * last.above_sma50 / max(last.tradable_count, 1):.0f}%")
     cols[3].metric("Оборот", f"{last.total_turnover / 1e9:.1f} млрд ₽")
     if not state.empty:
-        st.subheader(str(state.iloc[0].state_label).replace("_", " ").title())
+        current_state = str(state.iloc[0].state_label)
+        state_token = token_for("negative" if "stress" in current_state.lower() else "neutral")
+        st.subheader(f"{state_token.symbol} {current_state.replace('_', ' ').title()}")
         st.caption(
             "Профиль объясняется breadth, turnover, trend и dispersion; "
             "нормализация использует только прошлые сессии."
         )
-    st.line_chart(breadth.set_index("trade_date")[["advancing", "declining", "tradable_count"]])
+    sma200 = last.above_sma200 / max(last.tradable_count, 1)
+    status = "negative" if sma200 < 0.4 else "mixed" if sma200 < 0.6 else "positive"
+    st.metric("Рынок выше SMA200", f"{sma200:.0%}")
+    st.caption(accessible_label(status))
+    st.plotly_chart(breadth_figure(breadth.head(window)), use_container_width=True, key="market_breadth")
+    if not state.empty:
+        timeline = state.head(window).sort_values("trade_date")
+        st.subheader("Сохранённая временная шкала режимов")
+        st.dataframe(timeline[["trade_date", "state_label"]].T, use_container_width=True)
+        st.caption("Режимы читаются из market_state_daily и не раскрашиваются вручную.")
     st.caption(f"Покрытие: {coverage[0]} бумаг, {coverage[1]} строк, {coverage[2]} — {coverage[3]}.")
 
 

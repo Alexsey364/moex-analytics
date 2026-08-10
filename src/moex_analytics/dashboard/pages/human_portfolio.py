@@ -5,8 +5,16 @@ from __future__ import annotations
 import json
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
+from moex_analytics.dashboard.investor_visuals import (
+    horizon_heatmap,
+    price_figure,
+    risk_weight_figure,
+    scenario_figure,
+)
+from moex_analytics.dashboard.visual_semantics import confidence_segments, token_for
 from moex_analytics.database import connection
 from moex_analytics.portfolio_research.human_intelligence import INTENTS, answer_question
 from moex_analytics.portfolio_research.portfolio_editor import (
@@ -28,20 +36,15 @@ from moex_analytics.portfolio_research.visual_assistant import (
 )
 from moex_analytics.transparency import explain_current_decision
 
-st.markdown(
-    """<style>
-    .status-card{border:1px solid rgba(128,128,128,.25);border-radius:12px;padding:.75rem 1rem;
-      margin:.35rem 0;background:rgba(128,128,128,.04)}
-    .status-pill{display:inline-block;border-radius:999px;padding:.2rem .65rem;font-weight:600;
-      border:1px solid rgba(128,128,128,.3)}
-    </style>""",
-    unsafe_allow_html=True,
-)
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_q(sql, params):
+    with connection(read_only=True) as con:
+        return con.execute(sql, list(params)).df()
 
 
 def _q(sql, params=None):
-    with connection(read_only=True) as con:
-        return con.execute(sql, params or []).df()
+    return _cached_q(sql, tuple(params or ()))
 
 
 def _latest_report():
@@ -156,7 +159,7 @@ def _human_table(frame):
 
 def _add_decision_views(frame):
     result = frame.copy()
-    with connection(read_only=False) as con:
+    with connection(read_only=True) as con:
         traces = {secid: explain_current_decision(con, secid) for secid in result.secid}
     result["investment_view"] = result.secid.map(lambda secid: traces[secid]["investment_view"]["label"])
     result["allocation_view"] = result.secid.map(
@@ -166,7 +169,7 @@ def _add_decision_views(frame):
 
 
 def render_today():
-    st.title("МОЙ ПОРТФЕЛЬ")
+    st.title("Сегодня")
     report, frame = _synthesis()
     if report is None or frame.empty:
         _empty()
@@ -186,14 +189,48 @@ def render_today():
         [report.portfolio_snapshot_id],
     )
     risk_text = _pct(metric.iloc[0].value) if not metric.empty else "—"
+    market = _q("SELECT * FROM market_state_daily ORDER BY trade_date DESC LIMIT 2")
+    breadth = _q("SELECT * FROM market_breadth_daily ORDER BY trade_date DESC LIMIT 2")
+    st.subheader("РЫНОК СЕГОДНЯ")
     top = st.columns(6)
-    top[0].metric("Стоимость акций", _money(report.total_value))
-    top[1].metric("P/L", _pct(report.total_profit_pct))
-    top[2].metric("Дневное изменение", _pct(daily_change))
-    top[3].metric("Исторический риск", risk_text)
-    top[4].metric("Режим рынка", report.market_regime)
-    top[5].metric("Актуальность", f"{int(report.data_freshness_days)} дн.")
-    st.subheader("СЕГОДНЯШНИЙ ВЫВОД")
+    state_label = report.market_regime
+    state_delta = (
+        "→ без изменений"
+        if len(market) < 2 or market.iloc[0].state_label == market.iloc[1].state_label
+        else "↑ режим изменился"
+    )
+    top[0].metric("Режим", state_label, state_delta, delta_color="off")
+    if not breadth.empty:
+        last_b = breadth.iloc[0]
+        breadth_share = last_b.advancing / max(last_b.tradable_count, 1)
+        top[1].metric("Breadth", _pct(breadth_share), "доля растущих", delta_color="off")
+    else:
+        top[1].metric("Breadth", "? недостаточно данных")
+    top[2].metric("Волатильность", risk_text, "историческая", delta_color="off")
+    top[3].metric("Ликвидность", "i сохранённые данные")
+    top[4].metric("Ставки", "i см. макро")
+    top[5].metric("Рубль", "i см. макро")
+    st.subheader("МОЙ ПОРТФЕЛЬ")
+    summary = st.columns(4)
+    summary[0].metric("Стоимость акций", _money(report.total_value))
+    summary[1].metric("P/L", _pct(report.total_profit_pct))
+    summary[2].metric("Сегодня", _pct(daily_change))
+    summary[3].metric("Актуальность", f"{int(report.data_freshness_days)} дн.")
+    st.subheader("ГОРИЗОНТЫ ПОРТФЕЛЯ")
+    horizons = _q(
+        "SELECT h.secid,h.horizon,h.status,h.confidence,r.model_version model,NULL sample "
+        "FROM human_horizon_views h LEFT JOIN forecast_registry r ON r.secid=h.secid "
+        "AND r.horizon_sessions=h.horizon AND r.cutoff=(SELECT max(cutoff) FROM forecast_registry) "
+        "WHERE h.report_id=? ORDER BY h.secid,h.horizon",
+        [report.report_id],
+    )
+    if not horizons.empty:
+        st.plotly_chart(horizon_heatmap(horizons), use_container_width=True, key="today_horizon_heatmap")
+        st.caption(
+            "↑ положительно · → смешанно/ждать · ↓ негативно · ? не доказано. "
+            "Цвет не является единственным обозначением."
+        )
+    st.subheader("ЧТО МОЖНО ДЕЛАТЬ")
     counts = frame.visual_status.value_counts().to_dict()
     cols = st.columns(4)
     filters = [
@@ -219,6 +256,9 @@ def render_today():
         for row in alerts.head(5).itertuples():
             reason = row.top_negative or row.risk_view
             st.warning(f"{status_label(row.visual_status)} · {row.secid}: {reason}")
+    st.subheader("ЧТО ИЗМЕНИЛОСЬ")
+    for row in frame.itertuples():
+        st.write(f"**{row.secid}** {row.status_change}")
     st.subheader("🟢 МОЖНО РАССМАТРИВАТЬ")
     candidates = frame[frame.visual_status.isin(["GREEN", "LIGHT_GREEN"])]
     if candidates.empty:
@@ -237,10 +277,11 @@ def render_today():
     )
     matured = int(live.iloc[0].matured) if not live.empty else 0
     total = int(live.iloc[0].total) if not live.empty else 0
-    st.caption(
-        f"Реальная проверка моделей: {matured} / {total} прогнозов созрело. "
-        + ("Пока выборка мала." if matured < 20 else "См. страницу «Реальная проверка».")
-    )
+    st.subheader("КАЧЕСТВО ПРОГНОЗА")
+    if matured == 0:
+        st.info(f"⚪ Реальная проверка ещё не началась. Ожидают созревания: {total}.")
+    else:
+        st.caption(f"Созрело {matured} из {total}. См. страницу «Реальная проверка».")
 
 
 def render_portfolio():
@@ -250,6 +291,12 @@ def render_portfolio():
         _empty()
         return
     st.dataframe(_human_table(frame), use_container_width=True, hide_index=True)
+    st.plotly_chart(risk_weight_figure(frame), use_container_width=True, key="portfolio_risk_weight")
+    donut = go.Figure(
+        go.Pie(labels=frame.secid, values=frame.equity_weight, hole=0.5, textinfo="label+percent")
+    )
+    donut.update_layout(title="Веса акционной части", height=420, showlegend=False)
+    st.plotly_chart(donut, use_container_width=True, key="portfolio_weights")
     st.subheader("Исследовательский рейтинг — без магического общего score")
     blocks = _q(
         "SELECT secid,block_id,score,confidence,status FROM human_intelligence_blocks WHERE report_id=?",
@@ -365,8 +412,8 @@ def _company_card(row, report_id):
     cols[2].metric("Стоимость", _money(row.quantity * row.current_price))
     cols[3].metric("Вес", _pct(row.equity_weight))
     cols[4].metric("P/L", _pct(row.profit_loss_pct))
-    cols[5].metric("Уверенность", confidence_dots(row.confidence_label))
-    with connection(read_only=False) as con:
+    cols[5].metric("Уверенность", confidence_segments(row.confidence_score))
+    with connection(read_only=True) as con:
         trace = explain_current_decision(con, row.secid)
     st.markdown(f"### Инвестиционная оценка: {trace['investment_view']['label']}")
     st.markdown(f"### Портфельное ограничение: {trace['portfolio_allocation_view']['label']}")
@@ -387,18 +434,45 @@ def _company_card(row, report_id):
             st.markdown(f"**{title}**")
             st.write(value)
     horizons = _q(
-        "SELECT horizon,view_text FROM human_horizon_views WHERE report_id=? AND secid=? ORDER BY horizon",
+        "SELECT horizon,status,view_text,confidence FROM human_horizon_views "
+        "WHERE report_id=? AND secid=? ORDER BY horizon",
         [report_id, row.secid],
     )
     if not horizons.empty:
-        st.dataframe(
-            pd.DataFrame(
-                [horizons.view_text.tolist()],
-                columns=["1 день", "5 дней", "1 месяц", "3 месяца", "6 месяцев", "1 год"],
-            ),
-            use_container_width=True,
-            hide_index=True,
-        )
+        horizon_cards = st.columns(len(horizons))
+        for column, item in zip(horizon_cards, horizons.itertuples(), strict=False):
+            token = token_for(item.status)
+            column.markdown(f"**{item.horizon} дней**")
+            column.write(f"{token.symbol} {item.view_text}")
+            column.caption(f"Evidence: {confidence_segments(item.confidence)}")
+    period = st.radio(
+        "Период цены",
+        ("1М", "3М", "6М", "1Г", "3Г", "5Л", "MAX"),
+        horizontal=True,
+        index=3,
+        key=f"price_period_{row.secid}",
+    )
+    periods = {"1М": 23, "3М": 66, "6М": 132, "1Г": 252, "3Г": 756, "5Л": 1260, "MAX": 100000}
+    toggles = st.multiselect("Скользящие средние", (20, 50, 200), default=(20, 50), key=f"sma_{row.secid}")
+    prices = _q(
+        "SELECT trade_date,close FROM canonical_daily_prices WHERE canonical_secid=? "
+        "ORDER BY trade_date DESC LIMIT ?",
+        [row.secid, periods[period]],
+    ).sort_values("trade_date")
+    forecasts = _q(
+        "SELECT r.cutoff,r.current_price,r.horizon_sessions,r.qualitative_direction,"
+        "r.model_version,r.confidence,"
+        "o.outcome_status,o.direction_correct,o.neutral_hit,o.actual_return FROM forecast_registry r "
+        "LEFT JOIN forecast_outcomes o USING(forecast_id) WHERE r.secid=? ORDER BY r.cutoff",
+        [row.secid],
+    )
+    st.plotly_chart(
+        price_figure(prices, forecasts, tuple(toggles)), use_container_width=True, key=f"price_{row.secid}"
+    )
+    st.caption(
+        "○ pending · ↑ matured correct · ↓ matured wrong · → neutral. "
+        "Forecast markers — сохранённые прогнозы, не новая модель."
+    )
     with st.expander("Почему программа так считает?"):
         positive, negative = st.columns(2)
         with positive:
@@ -412,6 +486,17 @@ def _company_card(row, report_id):
         st.markdown("**Что должно измениться**")
         for item in _loads(row.invalidation_json):
             st.markdown(f"🟡 {item}")
+        blocks = _q(
+            "SELECT block_id,score,status FROM human_intelligence_blocks "
+            "WHERE report_id=? AND secid=? ORDER BY block_id",
+            [report_id, row.secid],
+        )
+        if not blocks.empty:
+            st.markdown("**Rule waterfall (сохранённые block scores)**")
+            for block in blocks.itertuples():
+                token = token_for(block.status)
+                st.write(f"{token.symbol} {block.block_id}: {block.score:+.2f} — {token.label}")
+            st.caption("Это rule trace, а не выдуманный SHAP/factor contribution.")
     with st.expander("Показать расчёты"):
         details = _q(
             "SELECT block_id,score,confidence,status,freshness_days,source_count,methodology_version "
@@ -523,8 +608,12 @@ def render_stocks():
         [secid],
     )
     if not evidence.empty:
-        rank = {"SHADOW_CANDIDATE": "повышенная", "IMPROVED_BY_ISSUER_DATA": "повышенная",
-                "WEAK_EVIDENCE": "средняя", "NO_EVIDENCE": "низкая"}
+        rank = {
+            "SHADOW_CANDIDATE": "повышенная",
+            "IMPROVED_BY_ISSUER_DATA": "повышенная",
+            "WEAK_EVIDENCE": "средняя",
+            "NO_EVIDENCE": "низкая",
+        }
         st.subheader("Историческая доказательность")
         st.dataframe(evidence.assign(level=evidence.status.map(rank)), use_container_width=True)
         working = evidence[evidence.status != "NO_EVIDENCE"].experiment.unique().tolist()
@@ -634,6 +723,36 @@ def render_risks():
         use_container_width=True,
         hide_index=True,
     )
+    st.plotly_chart(risk_weight_figure(frame), use_container_width=True, key="risks_weight_contribution")
+    returns = _q(
+        "SELECT trade_date,canonical_secid secid,total_return FROM daily_returns "
+        "WHERE canonical_secid IN (SELECT secid FROM human_instrument_synthesis "
+        "WHERE report_id=?)",
+        [report.report_id],
+    )
+    if not returns.empty:
+        window = st.selectbox("Окно корреляций", (60, 120, 250), index=1)
+        pivot = (
+            returns.sort_values("trade_date")
+            .groupby("secid")
+            .tail(window)
+            .pivot(index="trade_date", columns="secid", values="total_return")
+        )
+        corr = pivot.corr()
+        figure = go.Figure(
+            go.Heatmap(
+                z=corr.values,
+                x=corr.columns,
+                y=corr.index,
+                zmin=-1,
+                zmax=1,
+                colorscale="RdBu_r",
+                text=corr.round(2).values,
+                texttemplate="%{text}",
+            )
+        )
+        figure.update_layout(title=f"Корреляции, {window} сессий", height=560)
+        st.plotly_chart(figure, use_container_width=True, key="correlation_matrix")
 
 
 def render_scenarios():
@@ -649,7 +768,11 @@ def render_scenarios():
         "FROM portfolio_scenarios_v2 WHERE snapshot_id=? ORDER BY scenario,secid",
         [report.portfolio_snapshot_id],
     )
-    st.dataframe(frame, use_container_width=True, hide_index=True)
+    scenario = st.selectbox("Сценарий", frame.scenario.unique()) if not frame.empty else None
+    if scenario is not None:
+        selected = frame[frame.scenario == scenario]
+        st.plotly_chart(scenario_figure(selected), use_container_width=True, key="scenario_visual")
+        st.dataframe(selected, use_container_width=True, hide_index=True)
 
 
 def render_update():

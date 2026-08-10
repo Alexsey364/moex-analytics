@@ -6,6 +6,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from moex_analytics.dashboard.investor_visuals import live_progress
+from moex_analytics.dashboard.visual_semantics import color_for
 from moex_analytics.database import connection
 from moex_analytics.portfolio_research.forecast_scorecards import forecast_status
 from moex_analytics.portfolio_research.live_evidence import live_evidence_status
@@ -32,7 +34,7 @@ def render_basic():
     cols[1].metric("Созрело", status["matured"])
     cols[2].metric("Ожидает", status["pending"])
     outcomes = _q(
-        "SELECT avg(CASE WHEN direction_correct THEN 1.0 WHEN direction_correct=false THEN 0 END) hit," 
+        "SELECT avg(CASE WHEN direction_correct THEN 1.0 WHEN direction_correct=false THEN 0 END) hit,"
         "avg(abs(actual_return)) mae FROM forecast_outcomes WHERE outcome_status='matured'"
     )
     hit = outcomes.iloc[0].hit if not outcomes.empty else None
@@ -51,9 +53,7 @@ def render_forecast_vs_fact():
         st.info("Нет сохранённых прогнозов для графика.")
         return
     secid = st.selectbox("Акция", forecasts.secid.tolist(), key="forecast_secid")
-    horizons = _q(
-        "SELECT DISTINCT horizon_sessions FROM forecast_registry WHERE secid=? ORDER BY 1", [secid]
-    )
+    horizons = _q("SELECT DISTINCT horizon_sessions FROM forecast_registry WHERE secid=? ORDER BY 1", [secid])
     horizon = st.selectbox("Горизонт", horizons.horizon_sessions.tolist(), key="forecast_horizon")
     versions = _q(
         "SELECT DISTINCT model_version FROM forecast_registry WHERE secid=? "
@@ -65,24 +65,35 @@ def render_forecast_vs_fact():
         "SELECT r.forecast_id,r.cutoff,r.current_price,r.qualitative_direction,r.confidence,r.model_version,"
         "o.actual_return,o.direction_correct,o.maturity_trade_date FROM forecast_registry r "
         "LEFT JOIN forecast_outcomes o USING(forecast_id) WHERE r.secid=? AND r.horizon_sessions=? "
-        "AND r.model_version=? ORDER BY r.cutoff", [secid, horizon, version]
+        "AND r.model_version=? ORDER BY r.cutoff",
+        [secid, horizon, version],
     )
     prices = _q(
         "SELECT trade_date,close FROM canonical_daily_prices WHERE canonical_secid=? AND trade_date>="
-        "(SELECT min(cutoff) FROM forecast_registry WHERE secid=?) ORDER BY trade_date", [secid, secid]
+        "(SELECT min(cutoff) FROM forecast_registry WHERE secid=?) ORDER BY trade_date",
+        [secid, secid],
     )
     figure = go.Figure(go.Scatter(x=prices.trade_date, y=prices.close, name="Фактическая цена"))
-    colors = {"small_positive": "green", "small_negative": "red", "neutral": "gold",
-              "unknown": "gray"}
+    colors = {
+        "small_positive": color_for("positive"),
+        "small_negative": color_for("negative"),
+        "neutral": color_for("mixed"),
+        "unknown": color_for("insufficient"),
+    }
     for direction, group in points.groupby("qualitative_direction"):
-        figure.add_trace(go.Scatter(
-            x=group.cutoff, y=group.current_price, mode="markers", name=direction,
-            marker={"size": 11, "color": colors.get(direction, "gray")},
-            customdata=group[["confidence", "actual_return", "direction_correct", "model_version"]],
-            hovertemplate="Дата %{x}<br>Цена %{y}<br>Confidence %{customdata[0]}<br>"
-            "Доходность %{customdata[1]}<br>Результат %{customdata[2]}<br>"
-            "Версия %{customdata[3]}<extra></extra>",
-        ))
+        figure.add_trace(
+            go.Scatter(
+                x=group.cutoff,
+                y=group.current_price,
+                mode="markers",
+                name=direction,
+                marker={"size": 11, "color": colors.get(direction, "gray")},
+                customdata=group[["confidence", "actual_return", "direction_correct", "model_version"]],
+                hovertemplate="Дата %{x}<br>Цена %{y}<br>Confidence %{customdata[0]}<br>"
+                "Доходность %{customdata[1]}<br>Результат %{customdata[2]}<br>"
+                "Версия %{customdata[3]}<extra></extra>",
+            )
+        )
     st.plotly_chart(figure, use_container_width=True)
     st.caption("Метки показывают реально сохранённые прогнозы; ретроспективные прогнозы не создаются.")
     if not points.empty:
@@ -101,18 +112,26 @@ def render_range(forecast_id):
     item = row.iloc[0]
     path = _q(
         "SELECT trade_date,close FROM canonical_daily_prices WHERE canonical_secid=? AND trade_date>=? "
-        "ORDER BY trade_date LIMIT ?", [item.secid, item.cutoff, int(item.horizon_sessions) + 1]
+        "ORDER BY trade_date LIMIT ?",
+        [item.secid, item.cutoff, int(item.horizon_sessions) + 1],
     )
     figure = go.Figure(go.Scatter(x=path.trade_date, y=path.close, name="Фактическая траектория"))
     end_date = path.trade_date.iloc[-1] if not path.empty else item.cutoff
     for label, low, high, color in (
-        ("50%", item.range_50_low, item.range_50_high, "green"),
-        ("80%", item.range_80_low, item.range_80_high, "orange"),
-        ("90%", item.range_90_low, item.range_90_high, "gray"),
+        ("50%", item.range_50_low, item.range_50_high, color_for("positive")),
+        ("80%", item.range_80_low, item.range_80_high, color_for("caution")),
+        ("90%", item.range_90_low, item.range_90_high, color_for("insufficient")),
     ):
         if pd.notna(low) and pd.notna(high):
-            figure.add_trace(go.Scatter(x=[end_date, end_date], y=[low, high], mode="lines+markers",
-                                        name=f"Конечный диапазон {label}", line={"color": color}))
+            figure.add_trace(
+                go.Scatter(
+                    x=[end_date, end_date],
+                    y=[low, high],
+                    mode="lines+markers",
+                    name=f"Конечный диапазон {label}",
+                    line={"color": color},
+                )
+            )
     st.plotly_chart(figure, use_container_width=True)
     st.caption("Дневная прогнозная траектория не дорисовывается: показан только конечный interval marker.")
 
@@ -123,11 +142,14 @@ def render_track_record():
     st.subheader("Live")
     st.dataframe(_q("SELECT * FROM model_version_scorecards ORDER BY active_from"), use_container_width=True)
     st.subheader("Live scorecards")
-    st.dataframe(_q("SELECT * FROM forecast_scorecards ORDER BY model_version,horizon_sessions"),
-                 use_container_width=True)
+    st.dataframe(
+        _q("SELECT * FROM forecast_scorecards ORDER BY model_version,horizon_sessions"),
+        use_container_width=True,
+    )
     st.subheader("Learning journal")
-    st.dataframe(_q("SELECT * FROM forecast_learning_journal ORDER BY created_at DESC"),
-                 use_container_width=True)
+    st.dataframe(
+        _q("SELECT * FROM forecast_learning_journal ORDER BY created_at DESC"), use_container_width=True
+    )
 
 
 def render_quality():
@@ -150,20 +172,31 @@ def render_quality():
             "Live-история пока накапливается; pending outcome records не являются "
             "созревшими результатами, статистические выводы преждевременны."
         )
-    st.dataframe(_q("SELECT * FROM forecast_scorecards ORDER BY horizon_sessions"),
-                 use_container_width=True, hide_index=True)
+    st.dataframe(
+        _q("SELECT * FROM forecast_scorecards ORDER BY horizon_sessions"),
+        use_container_width=True,
+        hide_index=True,
+    )
     st.subheader("Последние ошибки")
-    st.dataframe(_q("SELECT secid,horizon_sessions,error_category,causality_warning,created_at "
-                    "FROM forecast_learning_journal WHERE error_category<>'no_direction_error' "
-                    "ORDER BY created_at DESC LIMIT 20"), use_container_width=True, hide_index=True)
+    st.dataframe(
+        _q(
+            "SELECT secid,horizon_sessions,error_category,causality_warning,created_at "
+            "FROM forecast_learning_journal WHERE error_category<>'no_direction_error' "
+            "ORDER BY created_at DESC LIMIT 20"
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
 
 
 def render_update_history():
     st.header("История обновлений")
-    frame = _q("SELECT started_at Дата,update_type Тип,duration_seconds Время,"
-               "http_requests Requests,rows_inserted Rows,errors Errors,new_forecasts \"New forecasts\","
-               "matured_forecasts \"Matured forecasts\",status Статус FROM daily_update_runs "
-               "ORDER BY started_at DESC")
+    frame = _q(
+        "SELECT started_at Дата,update_type Тип,duration_seconds Время,"
+        'http_requests Requests,rows_inserted Rows,errors Errors,new_forecasts "New forecasts",'
+        'matured_forecasts "Matured forecasts",status Статус FROM daily_update_runs '
+        "ORDER BY started_at DESC"
+    )
     if frame.empty:
         st.info("История обновлений пока пуста.")
     else:
@@ -178,9 +211,9 @@ def render_maturity_calendar():
     )
     frame = _q(
         "SELECT horizon_sessions Горизонт,count(*) Прогнозов,min(next_expected_maturity) "
-        "\"Ожидаемая дата\",min(sessions_remaining) \"Осталось сессий\","
+        '"Ожидаемая дата",min(sessions_remaining) "Осталось сессий",'
         "sum(CASE WHEN maturity_status='matured_confirmed' THEN 1 ELSE 0 END) Созрело,"
-        "min(date_basis) \"Основание даты\" FROM forecast_maturity_calendar GROUP BY 1 ORDER BY 1"
+        'min(date_basis) "Основание даты" FROM forecast_maturity_calendar GROUP BY 1 ORDER BY 1'
     )
     if frame.empty:
         st.info("Календарь ещё не рассчитан. Выполните быстрое ежедневное обновление.")
@@ -210,11 +243,15 @@ def render_live_evidence():
         "Пороговые названия показывают объём накопления, а не гарантируют статистическую достаточность. "
         "Shadow-результаты не влияют на пользовательское инвестиционное решение."
     )
-    st.dataframe(_q(
-        "SELECT secid,horizon_sessions,model_version,historical_oos_n,live_n,"
-        "live_direction_score,live_mae,live_calibration,drift_status,evidence_band "
-        "FROM live_evidence_meter ORDER BY secid,horizon_sessions"
-    ), use_container_width=True, hide_index=True)
+    st.dataframe(
+        _q(
+            "SELECT secid,horizon_sessions,model_version,historical_oos_n,live_n,"
+            "live_direction_score,live_mae,live_calibration,drift_status,evidence_band "
+            "FROM live_evidence_meter ORDER BY secid,horizon_sessions"
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
     latest = _q(
         "SELECT matured_new,matured_total,shadows_evaluated,finished_at FROM live_evidence_runs "
         "ORDER BY finished_at DESC LIMIT 1"
@@ -249,6 +286,13 @@ def render_live_validation():
     columns[5].metric("Нейтральные", int(row.neutral))
     if int(row.matured) < 10:
         st.warning("Sample status: insufficient. Сильные live-выводы запрещены.")
+    progress = live_progress(int(row.correct), int(row.wrong), int(row.neutral), int(row.total - row.matured))
+    if progress is None:
+        st.info(
+            "⚪ Реальная проверка ещё не началась. Accuracy не вычисляется до появления matured outcomes."
+        )
+    else:
+        st.plotly_chart(progress, use_container_width=True, key="live_scorecard_progress")
     scorecards = _q(
         "SELECT dimension_value secid,horizon_sessions horizon,model_version,observations,"
         "unique_cutoffs,effective_n,direction_accuracy,balanced_accuracy,mae,rmse,"
@@ -262,10 +306,14 @@ def render_live_validation():
         secid = st.selectbox("Акция", sorted(scorecards.secid.unique()), key="live_validation_stock")
         st.dataframe(scorecards[scorecards.secid == secid], use_container_width=True, hide_index=True)
     st.subheader("Baseline и shadow — только same-date")
-    st.dataframe(_q(
-        "SELECT secid,horizon_sessions,competitor,matched_dates,effective_n,advantage,status,reason "
-        "FROM live_model_duels ORDER BY secid,horizon_sessions,competitor"
-    ), use_container_width=True, hide_index=True)
+    st.dataframe(
+        _q(
+            "SELECT secid,horizon_sessions,competitor,matched_dates,effective_n,advantage,status,reason "
+            "FROM live_model_duels ORDER BY secid,horizon_sessions,competitor"
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
     st.caption(
         "Если competitor не был сохранён до результата на той же дате, "
         "duel не реконструируется задним числом."
