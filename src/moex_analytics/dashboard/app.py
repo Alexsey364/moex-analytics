@@ -263,6 +263,8 @@ basic_pages = {
     "Как программа прогнозирует": forecast_scorecard.render_basic,
     "Как программа учится": adaptive_learning.render_basic,
     "Качество прогнозов": forecast_scorecard.render_quality,
+    "Когда начнётся реальная проверка": forecast_scorecard.render_maturity_calendar,
+    "Что программа уже доказала": forecast_scorecard.render_live_evidence,
     "Дивиденды": human_portfolio.render_dividends,
     "Риски": human_portfolio.render_risks,
     "Сценарии": human_portfolio.render_scenarios,

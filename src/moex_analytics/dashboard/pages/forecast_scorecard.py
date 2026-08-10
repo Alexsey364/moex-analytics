@@ -8,6 +8,7 @@ import streamlit as st
 
 from moex_analytics.database import connection
 from moex_analytics.portfolio_research.forecast_scorecards import forecast_status
+from moex_analytics.portfolio_research.live_evidence import live_evidence_status
 
 
 def _q(sql, params=None):
@@ -167,3 +168,57 @@ def render_update_history():
         st.info("История обновлений пока пуста.")
     else:
         st.dataframe(frame, use_container_width=True, hide_index=True)
+
+
+def render_maturity_calendar():
+    st.header("Когда начнётся реальная проверка")
+    st.caption(
+        "Созревание считается только по фактически наблюдаемым биржевым сессиям. "
+        "Будущая дата — ориентир по будним дням до появления официальной торговой сессии."
+    )
+    frame = _q(
+        "SELECT horizon_sessions Горизонт,count(*) Прогнозов,min(next_expected_maturity) "
+        "\"Ожидаемая дата\",min(sessions_remaining) \"Осталось сессий\","
+        "sum(CASE WHEN maturity_status='matured_confirmed' THEN 1 ELSE 0 END) Созрело,"
+        "min(date_basis) \"Основание даты\" FROM forecast_maturity_calendar GROUP BY 1 ORDER BY 1"
+    )
+    if frame.empty:
+        st.info("Календарь ещё не рассчитан. Выполните быстрое ежедневное обновление.")
+        return
+    st.dataframe(frame, use_container_width=True, hide_index=True)
+    st.warning("Расчётная дата не создаёт outcome. Результат появляется только после реальных торгов.")
+
+
+def render_live_evidence():
+    st.header("Что программа уже доказала")
+    try:
+        with connection() as con:
+            status = live_evidence_status(con)
+    except Exception:
+        st.info("Live evidence ещё не рассчитан.")
+        return
+    cols = st.columns(4)
+    cols[0].metric("Историческая проверка", "research / pseudo-OOS")
+    cols[1].metric("Live matured", status["matured"])
+    cols[2].metric("Подтверждённых live-моделей", status["confirmed_live_models"])
+    cols[3].metric("Ожидают", status["pending"])
+    if status["matured"] == 0:
+        st.info("Реальная проверка ещё не началась.")
+    elif status["research_review_recommended"]:
+        st.warning("Накоплен триггер для исследовательского review. Auto-promotion запрещён.")
+    st.caption(
+        "Пороговые названия показывают объём накопления, а не гарантируют статистическую достаточность. "
+        "Shadow-результаты не влияют на пользовательское инвестиционное решение."
+    )
+    st.dataframe(_q(
+        "SELECT secid,horizon_sessions,model_version,historical_oos_n,live_n,"
+        "live_direction_score,live_mae,live_calibration,drift_status,evidence_band "
+        "FROM live_evidence_meter ORDER BY secid,horizon_sessions"
+    ), use_container_width=True, hide_index=True)
+    latest = _q(
+        "SELECT matured_new,matured_total,shadows_evaluated,finished_at FROM live_evidence_runs "
+        "ORDER BY finished_at DESC LIMIT 1"
+    )
+    if not latest.empty and int(latest.iloc[0].matured_new):
+        matured_new = int(latest.iloc[0].matured_new)
+        st.success(f"Созрело {matured_new} новых прогнозов. Качество моделей пересчитано.")

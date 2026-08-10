@@ -513,6 +513,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("fundamental-recovery-status")
     sub.add_parser("expand-predictive-context")
     sub.add_parser("expanded-context-status")
+    sub.add_parser("live-evidence-status")
+    sub.add_parser("forecast-maturity-calendar")
+    sub.add_parser("evaluate-live-evidence")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -852,6 +855,26 @@ def main() -> None:
                 if args.command == "expand-predictive-context"
                 else predictive_context_status(con)
             )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {
+        "live-evidence-status",
+        "forecast-maturity-calendar",
+        "evaluate-live-evidence",
+    }:
+        from .portfolio_research.live_evidence import (
+            build_maturity_calendar,
+            evaluate_live_evidence,
+            live_evidence_status,
+        )
+
+        init_database()
+        with connection() as con:
+            if args.command == "forecast-maturity-calendar":
+                result = build_maturity_calendar(con)
+            elif args.command == "evaluate-live-evidence":
+                result = evaluate_live_evidence(con)
+            else:
+                result = live_evidence_status(con)
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
         "data-inventory",

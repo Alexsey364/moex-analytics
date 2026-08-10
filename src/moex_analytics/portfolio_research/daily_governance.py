@@ -154,7 +154,7 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
         "forecast_evaluation",
     ]
     total_requests = total_rows = errors = new_forecasts = matured = 0
-    results, market_changed = [], False
+    results, market_changed, evidence_result = [], False, {}
     for number, dataset in enumerate(datasets, 1):
         began, requests, rows, status, error = time.perf_counter(), 0, 0, "smart_skip", None
         try:
@@ -177,16 +177,11 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
                 result = capture_daily_forecasts(con)
                 new_forecasts, status = result["inserted"], result["status"]
             elif dataset == "forecast_evaluation":
-                from .forecast_scorecards import (
-                    build_forecast_scorecards,
-                    build_learning_journal,
-                    evaluate_matured_forecasts,
-                )
+                from .live_evidence import evaluate_live_evidence
 
-                result = evaluate_matured_forecasts(con)
-                matured = result["matured"]
-                build_forecast_scorecards(con)
-                build_learning_journal(con)
+                result = evaluate_live_evidence(con)
+                evidence_result = result
+                matured = result["matured_new"]
                 build_governance_metrics(con)
                 status = "completed" if matured else "no_change"
             elif market_changed and dataset == "portfolio":
@@ -262,7 +257,13 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
         matured,
         status,
         no_change,
-        {"steps": results},
+        {
+            "steps": results,
+            "forecasts_pending": evidence_result.get("pending", 0),
+            "matured_today": matured,
+            "matured_total": evidence_result.get("matured", matured),
+            "shadow_models_evaluated": evidence_result.get("shadows_evaluated", 0),
+        },
     )
 
 
