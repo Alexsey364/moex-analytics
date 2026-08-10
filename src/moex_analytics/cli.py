@@ -530,6 +530,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("analog-trajectory-status")
     sub.add_parser("run-event-conditioned-analogs")
     sub.add_parser("event-conditioned-analog-status")
+    sub.add_parser("run-predictive-fusion")
+    sub.add_parser("predictive-fusion-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1753,6 +1755,17 @@ def main() -> None:
                 event_analog_engine.run_event_conditioning
                 if args.command == "run-event-conditioned-analogs"
                 else event_analog_engine.event_analog_status
+            )
+            print(action(con))
+    elif args.command in {"run-predictive-fusion", "predictive-fusion-status"}:
+        from .fusion_engine import core as fusion_engine
+
+        init_database()
+        with connection() as con:
+            action = (
+                fusion_engine.run_predictive_fusion
+                if args.command == "run-predictive-fusion"
+                else fusion_engine.fusion_status
             )
             print(action(con))
     elif args.command == "dashboard":
