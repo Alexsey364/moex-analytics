@@ -522,6 +522,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("validate-historical-events")
     sub.add_parser("build-historical-event-timeline")
     sub.add_parser("historical-event-status")
+    sub.add_parser("run-regime-intelligence-v2")
+    sub.add_parser("regime-intelligence-v2-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1703,6 +1705,17 @@ def main() -> None:
                 "historical-event-status": historical_events.event_status,
             }
             print(actions[args.command](con))
+    elif args.command in {"run-regime-intelligence-v2", "regime-intelligence-v2-status"}:
+        from .regime_intelligence import core as regime_intelligence
+
+        init_database()
+        with connection() as con:
+            action = (
+                regime_intelligence.run_regime_intelligence
+                if args.command == "run-regime-intelligence-v2"
+                else regime_intelligence.regime_status
+            )
+            print(action(con))
     elif args.command == "dashboard":
         from .dashboard.launcher import mark_process
 
