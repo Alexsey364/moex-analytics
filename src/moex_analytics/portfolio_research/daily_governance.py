@@ -100,7 +100,8 @@ def _finish(
     update_receipt(con, run_id)
     monitor_state = update_monitor.load()
     if monitor_state.get("run_id") == run_id:
-        update_monitor.finish(monitor_state, status)
+        monitor_status = "completed" if status in {"no_change", "dry_run"} else status
+        update_monitor.finish(monitor_state, monitor_status)
     return {
         "run_id": run_id,
         "duration_seconds": duration,
