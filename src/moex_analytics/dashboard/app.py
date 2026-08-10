@@ -99,6 +99,8 @@ top[3].metric(
 
 advanced_pages = {
     "Historical Analog Explorer 3.0": predictive_command_center.render_explorer,
+    "Visual Forecast Lab 3.0 — Opportunity Map": predictive_command_center.render_opportunity,
+    "Visual Forecast Lab 3.0 — Portfolio Optimizer": predictive_command_center.render_optimizer,
     "Корпоративные действия и качество цен": training_quality.render_corporate_actions,
     "Обучающая выборка": training_quality.render_training_universe,
     "Clean-universe relearning": training_quality.render_clean_relearning,

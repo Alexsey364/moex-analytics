@@ -10,8 +10,99 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from moex_analytics.dashboard.data_access import read_connection
+from moex_analytics.dashboard.visual_semantics import color_for
 
 HORIZONS = (5, 20, 60, 120, 250)
+
+
+def load_visual_lab(con) -> dict:
+    """Load immutable Stage 52-58 results without calculating or fitting anything."""
+    ranking = con.execute(
+        "SELECT * FROM current_portfolio_ranking WHERE run_id=(SELECT run_id FROM "
+        "ranking_research_runs WHERE status='completed' ORDER BY finished_at DESC LIMIT 1)"
+    ).df()
+    distributions = con.execute(
+        "SELECT * FROM current_return_distributions WHERE run_id=(SELECT run_id FROM "
+        "distribution_research_runs WHERE status='completed' ORDER BY finished_at DESC LIMIT 1)"
+    ).df()
+    opportunity = con.execute(
+        "SELECT * FROM opportunity_candidates WHERE run_id=(SELECT run_id FROM "
+        "opportunity_research_runs WHERE status='completed' ORDER BY finished_at DESC LIMIT 1) "
+        "AND candidate_type='equity'"
+    ).df()
+    plans = con.execute(
+        "SELECT * FROM portfolio_allocation_plans WHERE run_id=(SELECT run_id FROM "
+        "cash_aware_optimizer_runs WHERE status='completed' ORDER BY finished_at DESC LIMIT 1)"
+    ).df()
+    return {
+        "ranking": ranking,
+        "distributions": distributions,
+        "opportunity": opportunity,
+        "plans": plans,
+        "ready": not ranking.empty,
+    }
+
+
+def evidence_label(status: object) -> str:
+    value = str(status or "unknown").upper()
+    if value in {"ROBUST", "PASS", "PRODUCTION_CANDIDATE"}:
+        return "🟢 подтверждено"
+    if value in {"CONDITIONAL", "EXPERIMENTAL", "SHADOW"}:
+        return "🟡 исследуется"
+    if value in {"REJECTED", "FAIL"}:
+        return "🔴 отклонено"
+    return "⚪ недостаточно данных"
+
+
+def _ranking_board(frame: pd.DataFrame) -> go.Figure:
+    latest = frame.loc[frame.horizon == 60].sort_values("relative_rank")
+    return px.bar(
+        latest,
+        x="relative_rank",
+        y="secid",
+        orientation="h",
+        error_x=latest.rank_high - latest.relative_rank,
+        error_x_minus=latest.relative_rank - latest.rank_low,
+        color="tie_group",
+        title="Относительное место на горизонте 60 сессий (перекрытия = одна группа)",
+        labels={"relative_rank": "percentile rank", "secid": "бумага"},
+    )
+
+
+def _term_structure(frame: pd.DataFrame, secid: str) -> go.Figure:
+    selected = frame.loc[frame.secid == secid].sort_values("horizon")
+    figure = go.Figure()
+    figure.add_scatter(x=selected.horizon, y=selected.q90_return, line={"width": 0})
+    figure.add_scatter(
+        x=selected.horizon, y=selected.q10_return, fill="tonexty",
+        fillcolor="rgba(88,166,255,.15)", line={"width": 0}, name="10–90%",
+    )
+    figure.add_scatter(x=selected.horizon, y=selected.q75_return, line={"width": 0})
+    figure.add_scatter(
+        x=selected.horizon, y=selected.q25_return, fill="tonexty",
+        fillcolor="rgba(88,166,255,.30)", line={"width": 0}, name="25–75%",
+    )
+    figure.add_scatter(
+        x=selected.horizon, y=selected.q50_return, mode="lines+markers", name="Медиана"
+    )
+    return figure.update_layout(
+        title="Структура исторического диапазона по горизонтам",
+        xaxis_title="торговые сессии", yaxis_title="доходность", height=420,
+    )
+
+
+def _opportunity_scatter(frame: pd.DataFrame) -> go.Figure:
+    selected = frame.loc[frame.horizon == 60].copy()
+    selected["visual_status"] = selected.apply(
+        lambda row: "insufficient" if row.abstain else row.evidence_quality, axis=1
+    )
+    colors = {value: color_for(value) for value in selected.visual_status.unique()}
+    return px.scatter(
+        selected, x="downside_axis", y="opportunity_axis", text="secid",
+        size=selected.portfolio_weight.fillna(0).clip(lower=.01), color="visual_status",
+        color_discrete_map=colors, hover_data=["timing_status", "quadrant", "abstention_reason"],
+        title="Возможность и downside: выше — интереснее, правее — больше риск",
+    ).update_traces(textposition="top center")
 
 
 def load_command_center(con) -> dict:
@@ -126,6 +217,81 @@ def render_main() -> None:
         figure = _trajectory_chart(con, secid, "robust_euclidean", 0)
         if figure:
             st.plotly_chart(figure, use_container_width=True)
+        st.divider()
+        try:
+            lab = load_visual_lab(con)
+        except Exception:
+            st.info("Visual Forecast Lab появится после завершённого research-цикла.")
+            return
+        if not lab["ready"]:
+            return
+        st.subheader("Сравнение моих бумаг")
+        st.plotly_chart(_ranking_board(lab["ranking"]), use_container_width=True)
+        st.caption(
+            "Близкие интервалы рангов образуют overlap-группу: порядок внутри неё не доказан."
+        )
+        st.plotly_chart(_opportunity_scatter(lab["opportunity"]), use_container_width=True)
+        selected_stock = st.selectbox(
+            "Диапазоны бумаги", sorted(lab["distributions"].secid.unique()), key="lab_stock"
+        )
+        st.plotly_chart(
+            _term_structure(lab["distributions"], selected_stock), use_container_width=True
+        )
+        st.warning(
+            "Диапазоны — фактическое распределение OOS-ошибок исследовательского метода, "
+            "а не разрешённая числовая вероятность роста. Probability gate не ослаблен."
+        )
+
+
+def render_opportunity() -> None:
+    st.header("Opportunity Map")
+    st.caption("Только сохранённые Stage 56 результаты; расчёта при открытии страницы нет.")
+    with read_connection() as con:
+        lab = load_visual_lab(con)
+        if lab["opportunity"].empty:
+            st.info("Opportunity research ещё не рассчитан.")
+            return
+        st.plotly_chart(_opportunity_scatter(lab["opportunity"]), use_container_width=True)
+        visible = lab["opportunity"][[
+            "secid", "horizon", "quadrant", "timing_status", "evidence_quality",
+            "abstain", "abstention_reason",
+        ]].copy()
+        visible["доказательность"] = visible.evidence_quality.map(evidence_label)
+        st.dataframe(visible, use_container_width=True, hide_index=True)
+
+
+def render_optimizer() -> None:
+    st.header("Cash-aware Portfolio Optimizer")
+    st.caption("Research only: план не создаёт заявки и может оставить всю сумму в резерве.")
+    with read_connection() as con:
+        lab = load_visual_lab(con)
+        if lab["plans"].empty:
+            st.info("Сначала выполните cash-aware optimizer.")
+            return
+        tranche = st.selectbox(
+            "Сумма пополнения", sorted(lab["plans"].tranche.unique()), format_func=lambda x: f"{x:,.0f} ₽"
+        )
+        plans = lab["plans"].loc[lab["plans"].tranche == tranche].sort_values("plan_rank")
+        winner = plans.iloc[0]
+        columns = st.columns(3)
+        columns[0].metric("Распределить", f"{winner.invested:,.0f} ₽")
+        columns[1].metric("Оставить в резерве", f"{winner.cash_reserve:,.0f} ₽")
+        columns[2].metric(
+            "Статус",
+            "🔵 CASH предпочтительнее"
+            if winner.status == "CASH_PREFERRED"
+            else evidence_label(winner.robustness),
+        )
+        st.json(json.loads(winner.allocation_json))
+        st.info(
+            "Сейчас CASH выигрывает: рискованные варианты не прошли frozen OOS-критерии. "
+            "Ни один runner-up не является рекомендацией."
+        )
+        st.subheader("Сравнимые варианты")
+        st.dataframe(
+            plans[["plan_rank", "allocation_json", "invested", "cash_reserve", "robustness", "status"]],
+            use_container_width=True, hide_index=True,
+        )
 
 
 def render_explorer() -> None:
