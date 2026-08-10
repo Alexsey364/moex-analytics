@@ -548,6 +548,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("timing-research-status")
     sub.add_parser("run-opportunity-research")
     sub.add_parser("opportunity-research-status")
+    sub.add_parser("run-multi-horizon-research")
+    sub.add_parser("multi-horizon-research-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1870,6 +1872,17 @@ def main() -> None:
                 opportunity_engine.run_opportunity_research
                 if args.command == "run-opportunity-research"
                 else opportunity_engine.opportunity_status
+            )
+            print(action(con))
+    elif args.command in {"run-multi-horizon-research", "multi-horizon-research-status"}:
+        from .multi_horizon_engine import core as multi_horizon_engine
+
+        init_database()
+        with connection() as con:
+            action = (
+                multi_horizon_engine.run_multi_horizon_research
+                if args.command == "run-multi-horizon-research"
+                else multi_horizon_engine.multi_horizon_status
             )
             print(action(con))
     elif args.command == "dashboard":
