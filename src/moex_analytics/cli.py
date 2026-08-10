@@ -540,6 +540,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("predictive-target-status")
     sub.add_parser("run-ranking-research")
     sub.add_parser("ranking-research-status")
+    sub.add_parser("run-distribution-research")
+    sub.add_parser("distribution-research-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1818,6 +1820,17 @@ def main() -> None:
                 ranking_engine.run_ranking_research
                 if args.command == "run-ranking-research"
                 else ranking_engine.ranking_status
+            )
+            print(action(con))
+    elif args.command in {"run-distribution-research", "distribution-research-status"}:
+        from .distribution_engine import core as distribution_engine
+
+        init_database()
+        with connection() as con:
+            action = (
+                distribution_engine.run_distribution_research
+                if args.command == "run-distribution-research"
+                else distribution_engine.distribution_status
             )
             print(action(con))
     elif args.command == "dashboard":
