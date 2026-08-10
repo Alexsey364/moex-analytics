@@ -552,6 +552,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("multi-horizon-research-status")
     sub.add_parser("run-cash-aware-portfolio-optimizer")
     sub.add_parser("cash-aware-portfolio-optimizer-status")
+    marathon = sub.add_parser("run-predictive-research-marathon")
+    marathon.add_argument("--max-runtime-hours", type=float, default=10.0)
+    sub.add_parser("predictive-research-marathon-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1898,6 +1901,20 @@ def main() -> None:
                 else portfolio_optimizer.optimizer_status
             )
             print(action(con))
+    elif args.command in {
+        "run-predictive-research-marathon", "predictive-research-marathon-status"
+    }:
+        from .predictive_marathon import core as predictive_marathon
+
+        init_database()
+        with connection() as con:
+            if args.command == "run-predictive-research-marathon":
+                result = predictive_marathon.run_predictive_research_marathon(
+                    con, args.max_runtime_hours
+                )
+            else:
+                result = predictive_marathon.marathon_status(con)
+            print(result)
     elif args.command == "dashboard":
         from .dashboard.launcher import mark_process
 

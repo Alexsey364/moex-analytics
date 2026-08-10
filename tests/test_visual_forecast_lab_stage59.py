@@ -19,6 +19,9 @@ class FakeConnection:
     def df(self):
         return next(self.frames)
 
+    def fetchone(self):
+        return ("2026-08-07", "invalid_incomplete_universe")
+
 
 def test_visual_lab_reads_only_persisted_frames():
     frames = [
@@ -29,24 +32,46 @@ def test_visual_lab_reads_only_persisted_frames():
     ]
     result = load_visual_lab(FakeConnection(frames))
     assert result["ready"] is True
-    assert set(result) == {"ranking", "distributions", "opportunity", "plans", "ready"}
+    assert set(result) == {"ranking", "distributions", "opportunity", "plans", "ready", "freshness_warning"}
+    assert result["freshness_warning"][1] == "invalid_incomplete_universe"
 
 
 def test_visual_lab_figures_keep_uncertainty_and_human_labels():
-    ranking = pd.DataFrame({
-        "secid": ["A"], "horizon": [60], "relative_rank": [.7],
-        "rank_low": [.5], "rank_high": [.8], "tie_group": [1],
-    })
-    distributions = pd.DataFrame({
-        "secid": ["A"], "horizon": [60], "q10_return": [-.2], "q25_return": [-.1],
-        "q50_return": [.02], "q75_return": [.1], "q90_return": [.2],
-    })
-    opportunity = pd.DataFrame({
-        "secid": ["A"], "horizon": [60], "downside_axis": [.2],
-        "opportunity_axis": [.3], "portfolio_weight": [.1], "abstain": [True],
-        "evidence_quality": ["research_oos"], "timing_status": ["wait"],
-        "quadrant": ["watch"], "abstention_reason": ["no evidence"],
-    })
+    ranking = pd.DataFrame(
+        {
+            "secid": ["A"],
+            "horizon": [60],
+            "relative_rank": [0.7],
+            "rank_low": [0.5],
+            "rank_high": [0.8],
+            "tie_group": [1],
+        }
+    )
+    distributions = pd.DataFrame(
+        {
+            "secid": ["A"],
+            "horizon": [60],
+            "q10_return": [-0.2],
+            "q25_return": [-0.1],
+            "q50_return": [0.02],
+            "q75_return": [0.1],
+            "q90_return": [0.2],
+        }
+    )
+    opportunity = pd.DataFrame(
+        {
+            "secid": ["A"],
+            "horizon": [60],
+            "downside_axis": [0.2],
+            "opportunity_axis": [0.3],
+            "portfolio_weight": [0.1],
+            "abstain": [True],
+            "evidence_quality": ["research_oos"],
+            "timing_status": ["wait"],
+            "quadrant": ["watch"],
+            "abstention_reason": ["no evidence"],
+        }
+    )
     assert len(_ranking_board(ranking).data) == 1
     assert len(_term_structure(distributions, "A").data) == 5
     assert len(_opportunity_scatter(opportunity).data) == 1

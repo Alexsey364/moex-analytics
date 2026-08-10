@@ -148,7 +148,17 @@ def run_portfolio_optimizer(con: Any) -> dict[str, Any]:
         for idx, row in enumerate(positions.itertuples()):
             lots, shares, invested, residual = lot_allocation(
                 tranche, float(row.current_price), int(row.lot_size), cost_rate)
-            item = evidence.loc[row.secid]
+            if row.secid in evidence.index:
+                item = evidence.loc[row.secid]
+            else:
+                item = pd.Series({
+                    "relative_rank": None,
+                    "expected_median": None,
+                    "tail_downside": None,
+                    "timing_status": "insufficient_data",
+                    "evidence_quality": "insufficient_data",
+                    "abstain": True,
+                })
             new_values = positions.market_value.to_numpy(float).copy()
             new_values[idx] += invested
             new_weights = new_values / new_values.sum()

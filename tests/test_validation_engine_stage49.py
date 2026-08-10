@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 
 from moex_analytics.validation_engine.core import (
+    _evaluate,
     block_bootstrap_delta,
     ensure_schema,
     evidence_status,
@@ -18,11 +19,13 @@ from moex_analytics.validation_engine.strict_analogs import (
 
 
 def test_validation_metrics_are_oos_observation_metrics() -> None:
-    frame = pd.DataFrame({
-        "predicted_return": [0.1, -0.1, 0.2, -0.2],
-        "actual_return": [0.2, -0.2, -0.1, 0.1],
-        "abstained": [False, False, True, True],
-    })
+    frame = pd.DataFrame(
+        {
+            "predicted_return": [0.1, -0.1, 0.2, -0.2],
+            "actual_return": [0.2, -0.2, -0.1, 0.1],
+            "abstained": [False, False, True, True],
+        }
+    )
     metrics = validation_metrics(frame)
     assert metrics["observations"] == 4
     assert metrics["sign_accuracy"] == 0.5
@@ -51,8 +54,15 @@ def test_schema_records_untouched_holdout_contract() -> None:
     columns = {row[0] for row in con.execute("DESCRIBE analog_method_validation_status").fetchall()}
     assert "holdout_touched_for_selection" in columns
     selection = {row[0] for row in con.execute("DESCRIBE analog_method_selection_v2").fetchall()}
-    assert {"selected_k", "validation_end", "scaler_hash", "regime_model_hash",
-            "similarity_hash", "policy_hash", "holdout_touched_for_selection"} <= selection
+    assert {
+        "selected_k",
+        "validation_end",
+        "scaler_hash",
+        "regime_model_hash",
+        "similarity_hash",
+        "policy_hash",
+        "holdout_touched_for_selection",
+    } <= selection
     assert validation_status(con) == {"latest": None}
 
 
@@ -63,14 +73,19 @@ def test_frozen_analog_library_ignores_earlier_holdout_outcome() -> None:
     validation_end = dates[349]
     policy = fit_transform_policy(features, validation_end)
     cutoff = dates[420]
-    before = analog_outcomes(
-        prices, features, cutoff, 20, 20, "path_only", policy, validation_end, set()
-    )
+    before = analog_outcomes(prices, features, cutoff, 20, 20, "path_only", policy, validation_end, set())
     changed = prices.copy()
     changed.iloc[380] *= 10
     after = analog_outcomes(
-        changed, feature_frame(changed), cutoff, 20, 20, "path_only",
-        policy, validation_end, set(),
+        changed,
+        feature_frame(changed),
+        cutoff,
+        20,
+        20,
+        "path_only",
+        policy,
+        validation_end,
+        set(),
     )
     assert prediction_record(before) == prediction_record(after)
 
@@ -80,3 +95,39 @@ def test_holdout_method_policy_hash_and_library_end_are_persisted() -> None:
     ensure_schema(con)
     columns = {row[0] for row in con.execute("DESCRIBE analog_strict_predictions_v2").fetchall()}
     assert {"policy_hash", "library_end", "split", "probability_allowed"} <= columns
+
+
+def test_evaluation_uses_frozen_splits_date_blocks_and_contexts() -> None:
+    rows = []
+    dates = pd.bdate_range("2020-01-01", periods=120)
+    for mode in ("pseudo_oos_adaptive", "untouched_holdout_frozen"):
+        for index, cutoff in enumerate(dates):
+            actual = np.sin(index / 9) / 10
+            for variant, error in (("existing", 0.04), ("analog_path", 0.02)):
+                predicted = actual + error * (-1 if index % 2 else 1)
+                rows.append(
+                    {
+                        "secid": "SBERP",
+                        "horizon": 20,
+                        "cutoff": cutoff,
+                        "variant": variant,
+                        "evaluation_mode": mode,
+                        "predicted_return": predicted,
+                        "actual_return": actual,
+                        "absolute_error": abs(predicted - actual),
+                        "abstained": False,
+                        "validation_start": dates[0],
+                        "validation_end": dates[-1],
+                        "policy_train_end": pd.Timestamp("2019-12-31"),
+                        "event_active": index % 3 == 0,
+                        "regime": index % 2,
+                    }
+                )
+    scorecards, bootstraps = _evaluate(pd.DataFrame(rows), "validation")
+    assert scorecards
+    assert bootstraps
+    contexts = {row[5] for row in scorecards}
+    assert {"all", "event", "normal", "regime_0", "regime_1"} <= contexts
+    analog_holdout = [row for row in scorecards if row[3] == "analog_path" and row[4] == "holdout"]
+    assert any(row[19] in {"ANALOG_USEFUL", "SHADOW_CANDIDATE"} for row in analog_holdout)
+    assert all(row[9] == 20 for row in bootstraps)

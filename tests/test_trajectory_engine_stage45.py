@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from moex_analytics.trajectory_engine import core
 from moex_analytics.trajectory_engine.core import (
     MIN_EFFECTIVE_N,
     ensure_schema,
@@ -65,3 +66,53 @@ def test_replay_schema_encodes_train_only_history_boundary() -> None:
     ensure_schema(con)
     columns = {row[0] for row in con.execute("DESCRIBE analog_oos_replays").fetchall()}
     assert {"cutoff", "history_end", "train_only", "actual_return"} <= columns
+
+
+def test_full_trajectory_run_uses_real_prices_and_train_only_replays(monkeypatch) -> None:
+    con = duckdb.connect(":memory:")
+    con.execute("CREATE TABLE canonical_daily_prices(trade_date DATE,canonical_secid VARCHAR,close DOUBLE)")
+    con.execute(
+        "CREATE TABLE analog_search_runs_v3(run_id VARCHAR,cutoff DATE,status VARCHAR,finished_at TIMESTAMP)"
+    )
+    con.execute(
+        "CREATE TABLE historical_analogs_v3(run_id VARCHAR,analog_type VARCHAR,"
+        "secid VARCHAR,method VARCHAR,path_window INTEGER,analog_date DATE,"
+        "similarity_score DOUBLE,data_quality DOUBLE)"
+    )
+    dates = pd.bdate_range("2015-01-01", periods=1100)
+    prices = 100 * np.cumprod(1 + 0.0004 + np.sin(np.arange(1100) / 13) * 0.003)
+    con.executemany(
+        "INSERT INTO canonical_daily_prices VALUES (?,?,?)",
+        [(date, "AAA", float(price)) for date, price in zip(dates, prices, strict=True)],
+    )
+    con.execute(
+        "INSERT INTO analog_search_runs_v3 VALUES ('analog','2026-08-07','completed',current_timestamp)"
+    )
+    for analog_date in dates[100:106]:
+        con.execute(
+            "INSERT INTO historical_analogs_v3 VALUES ('analog','issuer','AAA','robust',20,?,.8,.9)",
+            [analog_date],
+        )
+    monkeypatch.setattr(core, "INSTRUMENTS", ("AAA",))
+    monkeypatch.setattr(core, "HORIZONS", (5, 20))
+    result = core.run_trajectory_forecasting(con)
+    assert result["status"] == "completed"
+    assert result["trajectories"] > 0
+    assert result["distributions"] == 2
+    assert result["replays"] > 0
+    assert (
+        con.execute(
+            "SELECT bool_and(source_trade_date>analog_date) FROM analog_forward_trajectories"
+        ).fetchone()[0]
+        is True
+    )
+    assert (
+        con.execute("SELECT bool_and(train_only AND history_end<cutoff) FROM analog_oos_replays").fetchone()[
+            0
+        ]
+        is True
+    )
+    assert (
+        con.execute("SELECT count(*) FROM analog_terminal_distributions WHERE status='ready'").fetchone()[0]
+        == 2
+    )

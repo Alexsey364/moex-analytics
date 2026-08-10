@@ -34,12 +34,17 @@ def load_visual_lab(con) -> dict:
         "SELECT * FROM portfolio_allocation_plans WHERE run_id=(SELECT run_id FROM "
         "cash_aware_optimizer_runs WHERE status='completed' ORDER BY finished_at DESC LIMIT 1)"
     ).df()
+    invalid = con.execute(
+        "SELECT cutoff,status FROM predictive_target_runs "
+        "WHERE status='invalid_incomplete_universe' ORDER BY finished_at DESC LIMIT 1"
+    ).fetchone()
     return {
         "ranking": ranking,
         "distributions": distributions,
         "opportunity": opportunity,
         "plans": plans,
         "ready": not ranking.empty,
+        "freshness_warning": invalid,
     }
 
 
@@ -225,6 +230,11 @@ def render_main() -> None:
             return
         if not lab["ready"]:
             return
+        if lab["freshness_warning"]:
+            st.warning(
+                "Свежая predictive-выборка неполна и не смешивается со старой. "
+                "Показан последний полный immutable snapshot по девяти бумагам."
+            )
         st.subheader("Сравнение моих бумаг")
         st.plotly_chart(_ranking_board(lab["ranking"]), use_container_width=True)
         st.caption(

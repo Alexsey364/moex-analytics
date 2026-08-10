@@ -2,6 +2,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 
+from moex_analytics.analog_engine import core
 from moex_analytics.analog_engine.core import (
     MAHALANOBIS_ROWS_PER_FEATURE,
     MIN_COVERAGE,
@@ -149,3 +150,42 @@ def test_failed_run_state_can_be_rebuilt_by_deterministic_run_id():
         con.execute(f"DELETE FROM {table} WHERE run_id='same'")
     assert con.execute("SELECT count(*) FROM analog_search_runs_v3").fetchone()[0] == 0
     assert con.execute("SELECT count(*) FROM analog_contexts_v3").fetchone()[0] == 0
+
+
+def test_full_search_uses_train_only_context_and_independent_real_dates(monkeypatch):
+    con = duckdb.connect(":memory:")
+    con.execute(
+        "CREATE TABLE regime_intelligence_runs(run_id VARCHAR,cutoff DATE,status VARCHAR,"
+        "finished_at TIMESTAMP)"
+    )
+    con.execute(
+        "INSERT INTO regime_intelligence_runs VALUES ('regime','2026-08-07','completed',current_timestamp)"
+    )
+    dates = pd.bdate_range("2015-01-01", periods=850)
+    frame = pd.DataFrame(
+        {
+            "ret_20": np.sin(np.arange(850) / 17) + np.arange(850) / 10000,
+            "volatility_20": 0.02 + np.cos(np.arange(850) / 13) / 100,
+            "relative_20": np.sin(np.arange(850) / 23),
+        },
+        index=dates,
+    )
+    monkeypatch.setattr(core, "_contexts", lambda _con, _run: [("issuer", "AAA", frame, list(frame.columns))])
+    monkeypatch.setattr(core, "_selected_regime", lambda _con, _run: {date: 0 for date in dates})
+    monkeypatch.setattr(core, "_event_dates", lambda _con: set(dates[::100]))
+    result = core.run_analog_search(con)
+    assert result["contexts"] == 1
+    assert result["analogs"] > 0
+    assert (
+        con.execute(
+            "SELECT bool_and(analog_date<cutoff AND independent) FROM historical_analogs_v3"
+        ).fetchone()[0]
+        is True
+    )
+    assert con.execute("SELECT bool_and(train_only) FROM analog_method_diagnostics_v3").fetchone()[0] is True
+    separations = con.execute(
+        "SELECT method,path_window,count(*) FROM historical_analogs_v3 GROUP BY 1,2"
+    ).fetchall()
+    assert separations
+    status = core.analog_status(con)
+    assert status["analogs"] == result["analogs"]
