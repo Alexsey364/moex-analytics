@@ -365,3 +365,27 @@ def render_live_ranking():
     columns[2].metric("Созрели", int(totals.matured))
     if int(totals.matured) < 30:
         st.info("Недостаточно live evidence. История не реконструируется задним числом.")
+
+
+def render_distilled():
+    """Render only saved Stage 65 evidence; never calculate or infer in UI."""
+    st.header("Что сейчас выглядит лучше остальных")
+    try:
+        with read_connection() as con:
+            frame = con.execute(
+                "SELECT secid AS Ticker,status_label AS Status,group_60 AS horizon_60,"
+                "group_120 AS horizon_120,group_250 AS horizon_250,downside AS Downside,"
+                "analog_role,timing,portfolio_fit,data_quality AS Evidence,live_n FROM "
+                "distilled_investor_views WHERE run_id=(SELECT run_id FROM investor_decision_runs "
+                "WHERE status='completed' ORDER BY created_at DESC LIMIT 1) ORDER BY Ticker"
+            ).df()
+    except Exception:
+        st.info("Недостаточно сохранённых данных для итогового представления.")
+        return
+    if frame.empty:
+        st.info("Недостаточно сохранённых данных для итогового представления.")
+        return
+    st.dataframe(frame, use_container_width=True, hide_index=True)
+    st.caption("Ранги относительные, не обещают рост. Числовая вероятность не публикуется.")
+    if (frame["live_n"] < 30).all():
+        st.warning("Live evidence пока недостаточно; optimizer сохраняет CASH_PREFERRED.")

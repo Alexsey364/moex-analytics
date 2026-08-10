@@ -563,6 +563,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("live-ranking-track-record-status")
     sub.add_parser("audit-current-snapshot-freshness")
     sub.add_parser("current-snapshot-freshness-status")
+    sub.add_parser("build-distilled-investor-view")
+    sub.add_parser("distilled-investor-view-status")
+    sub.add_parser("write-long-horizon-ranking-report")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1975,6 +1978,20 @@ def main() -> None:
                 else snapshot_freshness.freshness_status
             )
             print(action(con))
+    elif args.command in {
+        "build-distilled-investor-view", "distilled-investor-view-status",
+        "write-long-horizon-ranking-report"
+    }:
+        from .investor_decision import core as investor_decision
+
+        init_database()
+        with connection() as con:
+            actions = {
+                "build-distilled-investor-view": investor_decision.build_investor_decisions,
+                "distilled-investor-view-status": investor_decision.investor_status,
+                "write-long-horizon-ranking-report": investor_decision.write_final_report,
+            }
+            print(actions[args.command](con))
     elif args.command == "dashboard":
         from .dashboard.launcher import mark_process
 
