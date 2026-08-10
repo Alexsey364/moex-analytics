@@ -534,6 +534,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("predictive-fusion-status")
     sub.add_parser("run-strict-analog-validation")
     sub.add_parser("strict-analog-validation-status")
+    sub.add_parser("run-historical-analog-research")
+    sub.add_parser("historical-analog-research-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1779,6 +1781,17 @@ def main() -> None:
                 validation_engine.run_strict_validation
                 if args.command == "run-strict-analog-validation"
                 else validation_engine.validation_status
+            )
+            print(action(con))
+    elif args.command in {"run-historical-analog-research", "historical-analog-research-status"}:
+        from .research_pipeline import core as research_pipeline
+
+        init_database()
+        with connection() as con:
+            action = (
+                research_pipeline.run_historical_analog_research
+                if args.command == "run-historical-analog-research"
+                else research_pipeline.research_status
             )
             print(action(con))
     elif args.command == "dashboard":
