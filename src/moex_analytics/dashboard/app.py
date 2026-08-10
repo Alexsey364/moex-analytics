@@ -101,6 +101,7 @@ advanced_pages = {
     "Расширение quality universe": training_quality.render_quality_expansion,
     "PIT-фундаментал и сектор": training_quality.render_issuer_context,
     "Issuer-level evidence": training_quality.render_issuer_evidence,
+    "Official fundamental recovery": training_quality.render_fundamental_recovery,
     "Controlled Self-Learning Loop": learning_cycle.render_advanced,
     "Portfolio-aware learning": portfolio_learning.render,
     "Meta confidence и abstention": meta_learning.render,

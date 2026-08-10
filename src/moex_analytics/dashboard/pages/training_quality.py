@@ -174,3 +174,31 @@ def render_issuer_evidence() -> None:
             use_container_width=True,
         )
         st.warning("Research only: production unchanged, numerical probability gated.")
+
+
+def render_fundamental_recovery() -> None:
+    st.header("Восстановление официальных фундаментальных источников")
+    with read_connection() as con:
+        if not table_exists(con, "fundamental_recovery_runs"):
+            st.info("Stage 37 ещё не рассчитан.")
+            return
+        run = con.execute(
+            """SELECT run_id,sources_checked,sources_reachable,documents_discovered,
+            validated_periods_before,validated_periods_after,manual_review_candidates,
+            leakage_violations FROM fundamental_recovery_runs ORDER BY started_at DESC LIMIT 1"""
+        ).fetchone()
+        cols = st.columns(4)
+        cols[0].metric("Sources reachable", run[2], f"из {run[1]}")
+        cols[1].metric("Document links", run[3])
+        cols[2].metric("Validated periods", run[5], run[5] - run[4])
+        cols[3].metric("Manual review", run[6])
+        st.dataframe(
+            con.execute(
+                """SELECT issuer,source_candidate,reachable,tls_status,content_type,
+                machine_readable,status,blocker,discovered_links FROM source_resolution_registry
+                WHERE run_id=? ORDER BY issuer,source_candidate""",
+                [run[0]],
+            ).df(),
+            use_container_width=True,
+        )
+        st.caption(f"PIT leakage violations: {run[7]}. TLS validation was never disabled.")

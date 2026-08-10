@@ -151,4 +151,24 @@ CREATE TABLE IF NOT EXISTS issuer_feature_ablation(
  balanced_accuracy_delta DOUBLE,mae_delta DOUBLE,status VARCHAR,details_json JSON,
  PRIMARY KEY(run_id,secid,horizon,removed_family)
 );
+CREATE TABLE IF NOT EXISTS source_resolution_registry(
+ run_id VARCHAR,issuer VARCHAR,source_candidate VARCHAR,source_type VARCHAR,reachable BOOLEAN,
+ tls_status VARCHAR,http_status INTEGER,content_type VARCHAR,machine_readable BOOLEAN,
+ historical_depth VARCHAR,license VARCHAR,status VARCHAR,blocker VARCHAR,
+ document_hash VARCHAR,raw_path VARCHAR,discovered_links INTEGER,checked_at TIMESTAMP,
+ PRIMARY KEY(run_id,issuer,source_candidate)
+);
+CREATE TABLE IF NOT EXISTS fundamental_manual_review_candidates(
+ run_id VARCHAR,candidate_id VARCHAR,issuer VARCHAR,period DATE,metric VARCHAR,
+ document VARCHAR,page_table VARCHAR,row_label VARCHAR,candidate_value DOUBLE,unit VARCHAR,
+ parser_confidence DOUBLE,review_reason VARCHAR,source_hash VARCHAR,status VARCHAR,
+ PRIMARY KEY(run_id,candidate_id)
+);
+CREATE TABLE IF NOT EXISTS fundamental_recovery_runs(
+ run_id VARCHAR PRIMARY KEY,started_at TIMESTAMP,finished_at TIMESTAMP,status VARCHAR,
+ issuers INTEGER,sources_checked INTEGER,sources_reachable INTEGER,documents_discovered INTEGER,
+ documents_downloaded INTEGER,validated_periods_before INTEGER,validated_periods_after INTEGER,
+ manual_review_candidates INTEGER,leakage_violations INTEGER,requests INTEGER,
+ runtime_seconds DOUBLE,production_changes INTEGER,details_json JSON
+);
 """

@@ -509,6 +509,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("issuer-context-status")
     sub.add_parser("run-issuer-evidence-research")
     sub.add_parser("issuer-evidence-status")
+    sub.add_parser("recover-official-fundamentals")
+    sub.add_parser("fundamental-recovery-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -825,6 +827,17 @@ def main() -> None:
                 run_issuer_evidence_research(con, progress=print)
                 if args.command == "run-issuer-evidence-research"
                 else issuer_evidence_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"recover-official-fundamentals", "fundamental-recovery-status"}:
+        from .training_quality import fundamental_recovery_status, recover_official_fundamentals
+
+        init_database()
+        with connection() as con:
+            result = (
+                recover_official_fundamentals(con)
+                if args.command == "recover-official-fundamentals"
+                else fundamental_recovery_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
