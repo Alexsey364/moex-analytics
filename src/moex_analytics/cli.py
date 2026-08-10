@@ -542,6 +542,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("ranking-research-status")
     sub.add_parser("run-distribution-research")
     sub.add_parser("distribution-research-status")
+    sub.add_parser("run-scenario-research")
+    sub.add_parser("scenario-research-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1831,6 +1833,17 @@ def main() -> None:
                 distribution_engine.run_distribution_research
                 if args.command == "run-distribution-research"
                 else distribution_engine.distribution_status
+            )
+            print(action(con))
+    elif args.command in {"run-scenario-research", "scenario-research-status"}:
+        from .scenario_engine import core as scenario_engine
+
+        init_database()
+        with connection() as con:
+            action = (
+                scenario_engine.run_scenario_research
+                if args.command == "run-scenario-research"
+                else scenario_engine.scenario_status
             )
             print(action(con))
     elif args.command == "dashboard":
