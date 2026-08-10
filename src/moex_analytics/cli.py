@@ -536,6 +536,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("strict-analog-validation-status")
     sub.add_parser("run-historical-analog-research")
     sub.add_parser("historical-analog-research-status")
+    sub.add_parser("build-predictive-targets")
+    sub.add_parser("predictive-target-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1792,6 +1794,17 @@ def main() -> None:
                 research_pipeline.run_historical_analog_research
                 if args.command == "run-historical-analog-research"
                 else research_pipeline.research_status
+            )
+            print(action(con))
+    elif args.command in {"build-predictive-targets", "predictive-target-status"}:
+        from .predictive_targets import core as predictive_targets
+
+        init_database()
+        with connection() as con:
+            action = (
+                predictive_targets.build_predictive_targets
+                if args.command == "build-predictive-targets"
+                else predictive_targets.target_status
             )
             print(action(con))
     elif args.command == "dashboard":
