@@ -49,6 +49,7 @@ from moex_analytics.dashboard.pages import (
     overview,
     portfolio_learning,
     portfolio_research,
+    predictive_command_center,
     predictive_expansion,
     predictive_foundation,
     sber_decision,
@@ -97,6 +98,7 @@ top[3].metric(
 )
 
 advanced_pages = {
+    "Historical Analog Explorer 3.0": predictive_command_center.render_explorer,
     "Корпоративные действия и качество цен": training_quality.render_corporate_actions,
     "Обучающая выборка": training_quality.render_training_universe,
     "Clean-universe relearning": training_quality.render_clean_relearning,
@@ -259,6 +261,7 @@ basic_pages = {
     "Мои данные": transparency.render_data,
     "Развитие базы": predictive_expansion.render,
     "Состояние рынка": trading_statistics.render_market_state,
+    "Прогноз рынка и моих акций": predictive_command_center.render_main,
     "Мой портфель": human_portfolio.render_portfolio,
     "Куда вложить пополнение": human_portfolio.render_allocation,
     "Акции": human_portfolio.render_stocks,
