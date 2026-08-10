@@ -528,6 +528,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("historical-analog-search-v3-status")
     sub.add_parser("run-analog-trajectory-forecasting")
     sub.add_parser("analog-trajectory-status")
+    sub.add_parser("run-event-conditioned-analogs")
+    sub.add_parser("event-conditioned-analog-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1740,6 +1742,17 @@ def main() -> None:
                 trajectory_engine.run_trajectory_forecasting
                 if args.command == "run-analog-trajectory-forecasting"
                 else trajectory_engine.trajectory_status
+            )
+            print(action(con))
+    elif args.command in {"run-event-conditioned-analogs", "event-conditioned-analog-status"}:
+        from .event_analog_engine import core as event_analog_engine
+
+        init_database()
+        with connection() as con:
+            action = (
+                event_analog_engine.run_event_conditioning
+                if args.command == "run-event-conditioned-analogs"
+                else event_analog_engine.event_analog_status
             )
             print(action(con))
     elif args.command == "dashboard":
