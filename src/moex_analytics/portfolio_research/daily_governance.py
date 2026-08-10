@@ -9,6 +9,8 @@ from datetime import date, datetime, timedelta
 
 import numpy as np
 
+from moex_analytics import update_monitor
+
 UPDATE_LEVELS = ("quick", "deep", "retrain")
 DDL = """
 CREATE TABLE IF NOT EXISTS dataset_update_state(dataset VARCHAR PRIMARY KEY,last_observation_date DATE,
@@ -96,6 +98,9 @@ def _finish(
     from moex_analytics.transparency import update_receipt
 
     update_receipt(con, run_id)
+    monitor_state = update_monitor.load()
+    if monitor_state.get("run_id") == run_id:
+        update_monitor.finish(monitor_state, status)
     return {
         "run_id": run_id,
         "duration_seconds": duration,
@@ -122,6 +127,7 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
         "VALUES (?,?,?,'running',FALSE)",
         [run_id, mode, now],
     )
+    monitor_state = update_monitor.start(run_id, mode)
     if mode == "retrain":
         details = {
             "dry_run": dry_run,
@@ -156,19 +162,40 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
     total_requests = total_rows = errors = new_forecasts = matured = 0
     results, market_changed, evidence_result = [], False, {}
     for number, dataset in enumerate(datasets, 1):
+        if update_monitor.cancel_requested():
+            update_monitor.clear_cancel()
+            return _finish(con, run_id, started, number - 1, total_requests, total_rows, errors,
+                new_forecasts, matured, "cancelled", total_rows == 0,
+                {"steps": results, "resume": "incremental_next_run"})
         began, requests, rows, status, error = time.perf_counter(), 0, 0, "smart_skip", None
+        stage_meta = dict((item[0], item[1:]) for item in update_monitor.STAGES)[dataset]
+        update_monitor.progress(monitor_state, dataset=dataset, stage=stage_meta[0],
+                                source=stage_meta[1], status="running")
         try:
             if dataset == fail_source:
                 raise RuntimeError(f"simulated {dataset} source failure")
             if dataset == "prices":
                 if latest is None or (now.date() - latest).days > 3:
+                    from moex_analytics.moex_client import MoexClient
+
                     from .core import build_portfolio_total_returns, download_portfolio_history
 
                     before = con.execute("SELECT count(*) FROM canonical_daily_prices").fetchone()[0]
-                    download_portfolio_history(con)
+                    def request_progress(*, dataset_name=dataset, **info):
+                        monitor_state["retries"] += int(info["status"] == "retrying")
+                        update_monitor.progress(monitor_state, dataset=dataset_name,
+                            stage=f"MOEX request: {info['path'].split('?')[0]}",
+                            source="MOEX ISS",
+                            status="retrying" if info["status"] == "retrying" else "running",
+                            requests=int(info["status"] == "completed"),
+                            duration=info["duration"])
+
+                    client = MoexClient(progress_callback=request_progress)
+                    download_portfolio_history(con, client=client)
                     build_portfolio_total_returns(con)
                     after = con.execute("SELECT count(*) FROM canonical_daily_prices").fetchone()[0]
-                    rows, requests, status, market_changed = after - before, 1, "completed", after > before
+                    rows, requests = after - before, client.request_count
+                    status, market_changed = "completed", after > before
                 else:
                     status = "no_new_logical_cutoff"
             elif dataset == "forecasts":
@@ -198,6 +225,9 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
             status = "failed_using_previous_snapshot"
             error = f"{type(exc).__name__}: {exc}"
         duration = time.perf_counter() - began
+        update_monitor.progress(monitor_state, dataset=dataset, stage=stage_meta[0],
+            source=stage_meta[1], status=status, requests=requests, rows=rows,
+            error=error, duration=duration)
         con.execute(
             "INSERT INTO daily_update_requests VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [

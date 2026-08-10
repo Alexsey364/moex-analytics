@@ -71,6 +71,17 @@ def test_retry_after_temporary_error():
     assert sleeps == [1.0]
 
 
+def test_request_progress_reports_retry_duration_and_counts():
+    session = Session([Response({}, 503), Response({"ok": True})])
+    events = []
+    client = MoexClient(session=session, sleep=lambda _: None,
+                        progress_callback=lambda **event: events.append(event))
+    assert client.get_json("history/test") == {"ok": True}
+    assert client.request_count == 2 and client.retry_count == 1
+    assert [event["status"] for event in events] == ["retrying", "completed"]
+    assert all(event["duration"] >= 0 for event in events)
+
+
 def test_discover_history_filters_non_price_markets(tmp_path):
     body = {
         "boards": {

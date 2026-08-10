@@ -11,6 +11,7 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+from moex_analytics import update_monitor
 from moex_analytics.dashboard import launcher as port_launcher
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -49,15 +50,48 @@ def environment_errors() -> list[str]:
 
 
 def run_quick_daily() -> bool:
-    print("Обновление последних данных...", flush=True)
-    result = subprocess.run(
+    previous = update_monitor.recover_interrupted()
+    if previous.get("status") in {"starting", "running", "waiting_source", "retrying"} and (
+        update_monitor.process_alive(previous.get("pid"))
+    ):
+        print("Обновление уже выполняется. Открываю dashboard/status page.")
+        return True
+    print("Обновление последних данных... Ctrl+C = остановить после текущего запроса", flush=True)
+    process = subprocess.Popen(
         [sys.executable, "-m", "moex_analytics.cli", "quick-daily-update"],
         cwd=PROJECT_ROOT,
-        check=False,
     )
-    if result.returncode:
+    last_line = None
+    try:
+        while process.poll() is None:
+            state = update_monitor.load()
+            if state:
+                health = update_monitor.health(state)
+                eta = update_monitor.eta_seconds(state)
+                line = (f"[{state.get('items_done', 0)}/{state.get('items_total', '?')}] "
+                        f"{state.get('current_source') or 'starting'} | "
+                        f"{state.get('current_stage')} | rows +{state.get('rows_inserted', 0)} | "
+                        f"requests {state.get('requests_completed', 0)} | {health} | "
+                        f"ETA {int(eta)}s" if eta is not None else
+                        f"[{state.get('items_done', 0)}/{state.get('items_total', '?')}] "
+                        f"{state.get('current_source') or 'starting'} | "
+                        f"{state.get('current_stage')} | rows +{state.get('rows_inserted', 0)} | "
+                        f"requests {state.get('requests_completed', 0)} | {health} | ETA unavailable")
+                if line != last_line:
+                    print(line, flush=True)
+                    last_line = line
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Запрошена безопасная остановка после текущего шага...")
+        update_monitor.request_cancel()
+        process.wait()
+    result_code = process.wait()
+    state = update_monitor.load()
+    print(f"ГОТОВО | status={state.get('status')} | requests={state.get('requests_completed', 0)} | "
+          f"rows={state.get('rows_inserted', 0)} | errors={state.get('errors', 0)}")
+    if result_code:
         print("Предупреждение: обновление не завершено; dashboard покажет последние сохранённые данные.")
-    return result.returncode == 0
+    return result_code == 0
 
 
 def _healthy() -> bool:

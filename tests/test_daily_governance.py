@@ -3,6 +3,7 @@ from datetime import date, datetime
 import duckdb
 import numpy as np
 
+from moex_analytics import update_monitor
 from moex_analytics.portfolio_research.daily_governance import (
     DDL,
     concept_drift_status,
@@ -100,3 +101,12 @@ def test_launcher_defaults_to_quick_update():
     assert "moex_analytics.launcher --daily-only" in batch
     assert '"quick-daily-update"' in launcher
     assert "deep-update" not in launcher and "model-research" not in launcher
+
+
+def test_safe_cancel_stops_between_steps_and_resumes_incrementally(monkeypatch):
+    con = _con()
+    monkeypatch.setattr(update_monitor, "cancel_requested", lambda: True)
+    monkeypatch.setattr(update_monitor, "clear_cancel", lambda: None)
+    cancelled = run_daily_update(con, now=datetime(2026, 8, 8, 12))
+    assert cancelled["status"] == "cancelled"
+    assert cancelled["resume"] == "incremental_next_run"

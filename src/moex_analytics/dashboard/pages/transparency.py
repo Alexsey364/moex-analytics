@@ -111,7 +111,35 @@ def render_update_receipt() -> None:
 
 def render_update() -> None:
     """Keep the established safe updater and add its auditable receipt."""
+    from moex_analytics import update_monitor
     from moex_analytics.dashboard.pages import human_portfolio
+
+    state = update_monitor.recover_interrupted()
+    if state:
+        health = update_monitor.health(state)
+        icon = {"ACTIVE": "🟢", "SLOW": "🟡", "STALLED": "🔴"}.get(health, "⚪")
+        st.subheader("Live progress")
+        st.write(f"{icon} {state.get('status')} — {state.get('current_source') or '—'} / "
+                 f"{state.get('current_stage') or '—'}")
+        total, done = state.get("items_total"), state.get("items_done", 0)
+        if total:
+            st.progress(min(1.0, done / total), text=f"{done} / {total}")
+        cols = st.columns(4)
+        cols[0].metric("Requests", state.get("requests_completed", 0))
+        cols[1].metric("New rows", state.get("rows_inserted", 0))
+        cols[2].metric("Errors", state.get("errors", 0))
+        eta = update_monitor.eta_seconds(state)
+        cols[3].metric("ETA", f"~{int(eta)} sec" if eta is not None else "unavailable")
+        if state.get("status") in {"starting", "running", "waiting_source", "retrying"}:
+            if st.button("Остановить после текущего запроса"):
+                update_monitor.request_cancel()
+                st.warning("Запрос на безопасную остановку сохранён.")
+        stages = state.get("stages", [])
+        if stages:
+            st.dataframe(stages, use_container_width=True, hide_index=True)
+        with st.expander("Последние события"):
+            for event in state.get("events", [])[-30:]:
+                st.text(f"{event.get('at', '')}  {event.get('message', '')}")
 
     human_portfolio.render_update()
     st.divider()

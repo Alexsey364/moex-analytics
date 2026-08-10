@@ -19,10 +19,14 @@ class MoexError(RuntimeError):
 
 
 class MoexClient:
-    def __init__(self, session: requests.Session | None = None, sleep=time.sleep) -> None:
+    def __init__(self, session: requests.Session | None = None, sleep=time.sleep,
+                 progress_callback=None) -> None:
         config = load_settings()["moex_iss"]
         self.base_url = config["base_url"].rstrip("/")
-        self.timeout = config["timeout_seconds"]
+        self.timeout = (
+            config.get("connect_timeout_seconds", config["timeout_seconds"]),
+            config.get("read_timeout_seconds", config["timeout_seconds"]),
+        )
         self.max_retries = config["max_retries"]
         self.backoff = config["retry_backoff_seconds"]
         self.page_size = config["page_size"]
@@ -30,16 +34,25 @@ class MoexClient:
         self.session.headers.update({"User-Agent": config["user_agent"]})
         self.sleep = sleep
         self.raw_dir = PROJECT_ROOT / load_settings()["paths"]["raw_data"]
+        self.progress_callback = progress_callback
+        self.request_count = 0
+        self.retry_count = 0
 
     def get_json(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         url = f"{self.base_url}/{path.lstrip('/')}"
         for attempt in range(self.max_retries):
+            started = time.perf_counter()
             try:
                 response = self.session.get(url, params=params, timeout=self.timeout)
+                self.request_count += 1
                 if response.status_code in {429, 500, 502, 503, 504}:
                     raise requests.HTTPError(f"temporary HTTP {response.status_code}", response=response)
                 response.raise_for_status()
-                return response.json()
+                payload = response.json()
+                if self.progress_callback:
+                    self.progress_callback(path=path, attempt=attempt + 1,
+                        duration=time.perf_counter() - started, status="completed")
+                return payload
             except (
                 requests.Timeout,
                 requests.ConnectionError,
@@ -51,6 +64,10 @@ class MoexClient:
                 )
                 if not retryable or attempt + 1 == self.max_retries:
                     raise MoexError(f"MOEX ISS request failed: {url}: {exc}") from exc
+                self.retry_count += 1
+                if self.progress_callback:
+                    self.progress_callback(path=path, attempt=attempt + 1,
+                        duration=time.perf_counter() - started, status="retrying")
                 self.sleep(self.backoff * (2**attempt))
         raise AssertionError("unreachable")
 
