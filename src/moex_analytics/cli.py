@@ -518,6 +518,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("evaluate-live-evidence")
     sub.add_parser("live-validation-status")
     sub.add_parser("evaluate-live-validation")
+    sub.add_parser("build-historical-event-foundation")
+    sub.add_parser("validate-historical-events")
+    sub.add_parser("build-historical-event-timeline")
+    sub.add_parser("historical-event-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1680,6 +1684,23 @@ def main() -> None:
                     con, mode="retrain", dry_run=True
                 ),
                 "model-governance-status": daily_governance.governance_status,
+            }
+            print(actions[args.command](con))
+    elif args.command in {
+        "build-historical-event-foundation",
+        "validate-historical-events",
+        "build-historical-event-timeline",
+        "historical-event-status",
+    }:
+        from .historical_events import core as historical_events
+
+        init_database()
+        with connection() as con:
+            actions = {
+                "build-historical-event-foundation": historical_events.build_foundation,
+                "validate-historical-events": historical_events.validate_events,
+                "build-historical-event-timeline": historical_events.build_timeline,
+                "historical-event-status": historical_events.event_status,
             }
             print(actions[args.command](con))
     elif args.command == "dashboard":
