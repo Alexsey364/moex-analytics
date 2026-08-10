@@ -347,3 +347,21 @@ def render_explorer() -> None:
                            error_y_minus=distributions.median_return - distributions.q25,
                            title="Медиана и исторический межквартильный диапазон")
             st.plotly_chart(chart, use_container_width=True)
+def render_live_ranking():
+    """Show prospective ranking evidence without implying matured observations."""
+    st.header("Live ranking snapshots")
+    try:
+        with read_connection() as con:
+            totals = con.execute(
+                "SELECT count(*) total,count(*) FILTER(WHERE status='pending') pending,"
+                "count(*) FILTER(WHERE status='matured') matured FROM live_ranking_outcomes"
+            ).df().iloc[0]
+    except Exception:
+        st.info("Недостаточно live-данных: наблюдение ещё не начато.")
+        return
+    columns = st.columns(3)
+    columns[0].metric("Всего snapshots", int(totals.total))
+    columns[1].metric("Ожидают maturity", int(totals.pending))
+    columns[2].metric("Созрели", int(totals.matured))
+    if int(totals.matured) < 30:
+        st.info("Недостаточно live evidence. История не реконструируется задним числом.")

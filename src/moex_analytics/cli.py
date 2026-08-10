@@ -559,6 +559,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("long-horizon-ranking-validation-status")
     sub.add_parser("run-uncertainty-aware-rank-groups")
     sub.add_parser("uncertainty-aware-rank-groups-status")
+    sub.add_parser("update-live-ranking-track-record")
+    sub.add_parser("live-ranking-track-record-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1943,6 +1945,19 @@ def main() -> None:
                 rank_groups.run_rank_grouping
                 if args.command == "run-uncertainty-aware-rank-groups"
                 else rank_groups.rank_group_status
+            )
+            print(action(con))
+    elif args.command in {
+        "update-live-ranking-track-record", "live-ranking-track-record-status"
+    }:
+        from .live_ranking import core as live_ranking
+
+        init_database()
+        with connection() as con:
+            action = (
+                live_ranking.update_live_rankings
+                if args.command == "update-live-ranking-track-record"
+                else live_ranking.live_ranking_status
             )
             print(action(con))
     elif args.command == "dashboard":
