@@ -53,7 +53,10 @@ def calculate_rows(
 
 
 def calculate_all(con: duckdb.DuckDBPyConnection) -> int:
-    con.execute("DELETE FROM daily_returns WHERE calculation_version=?", [CALCULATION_VERSION])
+    # Build completely before replacing the canonical layer. A killed process must
+    # never expose a half-rebuilt universe to downstream research.
+    con.execute("DROP TABLE IF EXISTS _daily_returns_stage")
+    con.execute("CREATE TEMP TABLE _daily_returns_stage AS SELECT * FROM daily_returns WHERE false")
     secids = [
         row[0]
         for row in con.execute("SELECT DISTINCT canonical_secid FROM canonical_daily_prices").fetchall()
@@ -76,9 +79,13 @@ def calculate_all(con: duckdb.DuckDBPyConnection) -> int:
                 [secid],
             ).fetchall()
         }
-        for row in calculate_rows(prices, dividends):
-            con.execute(
-                """INSERT INTO daily_returns VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        rows = calculate_rows(prices, dividends)
+        con.executemany(
+            """INSERT INTO _daily_returns_stage (
+            trade_date,canonical_secid,price_return,log_return,dividend_cash,
+            dividend_return,total_return,total_return_index,calculation_version,calculated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            [
                 [
                     row[key]
                     for key in (
@@ -93,7 +100,24 @@ def calculate_all(con: duckdb.DuckDBPyConnection) -> int:
                         "calculation_version",
                         "calculated_at",
                     )
-                ],
-            )
-            total += 1
+                ]
+                for row in rows
+            ],
+        )
+        total += len(rows)
+    duplicates = con.execute(
+        "SELECT count(*)-count(DISTINCT (trade_date,canonical_secid,calculation_version)) "
+        "FROM _daily_returns_stage"
+    ).fetchone()[0]
+    if duplicates:
+        raise ValueError(f"daily return staging contains {duplicates} duplicate keys")
+    con.execute("BEGIN TRANSACTION")
+    try:
+        con.execute("DELETE FROM daily_returns WHERE calculation_version=?", [CALCULATION_VERSION])
+        con.execute("INSERT INTO daily_returns SELECT * FROM _daily_returns_stage")
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    con.execute("DROP TABLE _daily_returns_stage")
     return total

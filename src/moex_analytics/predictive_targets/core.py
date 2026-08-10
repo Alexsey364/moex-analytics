@@ -11,7 +11,7 @@ import pandas as pd
 
 from .schema import DDL
 
-VERSION = "predictive-targets-v2"
+VERSION = "predictive-targets-v3-atomic"
 HORIZONS = (1, 5, 20, 60, 120, 250)
 ENTRY_POLICIES = {"BUY_NOW": 1, "WAIT_3": 3, "WAIT_5": 5, "WAIT_10": 10}
 LIMIT_POLICIES = {"BUY_AFTER_DIP_2": 0.02, "BUY_AFTER_DIP_3": 0.03}
@@ -212,18 +212,27 @@ def build_predictive_targets(con: Any) -> dict[str, Any]:
         [run_id, VERSION, source_version, cutoff, input_hash, json.dumps({"production_changes": 0})])
     try:
         observations, entries = _records(frame, run_id)
-        for name, data in (("predictive_target_observations", observations),
-                           ("predictive_entry_targets", entries)):
-            con.register(f"_{name}", data)
-            columns = ",".join(data.columns)
-            con.execute(f"INSERT INTO {name} ({columns}) SELECT {columns} FROM _{name}")
-            con.unregister(f"_{name}")
         details = {"horizons": HORIZONS, "path_shapes": sorted(PATH_SHAPES),
                    "sector_excess": "unavailable_no_pit_sector_mapping", "future_leakage": False,
                    "probability_published": False, "production_changes": 0}
-        con.execute("UPDATE predictive_target_runs SET finished_at=current_timestamp,status='completed',"
-            "observation_rows=?,entry_rows=?,details_json=? WHERE run_id=?",
-            [len(observations), len(entries), json.dumps(details), run_id])
+        # A previous killed attempt may have left rows for the deterministic run
+        # id. Replace both child layers in one transaction, never append to them.
+        con.execute("BEGIN TRANSACTION")
+        try:
+            for name, data in (("predictive_target_observations", observations),
+                               ("predictive_entry_targets", entries)):
+                con.execute(f"DELETE FROM {name} WHERE run_id=?", [run_id])
+                con.register(f"_{name}", data)
+                columns = ",".join(data.columns)
+                con.execute(f"INSERT INTO {name} ({columns}) SELECT {columns} FROM _{name}")
+                con.unregister(f"_{name}")
+            con.execute("UPDATE predictive_target_runs SET finished_at=current_timestamp,"
+                "status='completed',observation_rows=?,entry_rows=?,details_json=? WHERE run_id=?",
+                [len(observations), len(entries), json.dumps(details), run_id])
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
         return {"run_id": run_id, "status": "completed", "observations": len(observations),
                 "entry_targets": len(entries), "cutoff": cutoff, "cached": False}
     except Exception as exc:

@@ -561,6 +561,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("uncertainty-aware-rank-groups-status")
     sub.add_parser("update-live-ranking-track-record")
     sub.add_parser("live-ranking-track-record-status")
+    sub.add_parser("audit-current-snapshot-freshness")
+    sub.add_parser("current-snapshot-freshness-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1958,6 +1960,19 @@ def main() -> None:
                 live_ranking.update_live_rankings
                 if args.command == "update-live-ranking-track-record"
                 else live_ranking.live_ranking_status
+            )
+            print(action(con))
+    elif args.command in {
+        "audit-current-snapshot-freshness", "current-snapshot-freshness-status"
+    }:
+        from .snapshot_freshness import core as snapshot_freshness
+
+        init_database()
+        with connection() as con:
+            action = (
+                snapshot_freshness.audit_current_freshness
+                if args.command == "audit-current-snapshot-freshness"
+                else snapshot_freshness.freshness_status
             )
             print(action(con))
     elif args.command == "dashboard":
