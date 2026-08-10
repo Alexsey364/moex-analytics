@@ -524,6 +524,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("historical-event-status")
     sub.add_parser("run-regime-intelligence-v2")
     sub.add_parser("regime-intelligence-v2-status")
+    sub.add_parser("run-historical-analog-search-v3")
+    sub.add_parser("historical-analog-search-v3-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1714,6 +1716,17 @@ def main() -> None:
                 regime_intelligence.run_regime_intelligence
                 if args.command == "run-regime-intelligence-v2"
                 else regime_intelligence.regime_status
+            )
+            print(action(con))
+    elif args.command in {"run-historical-analog-search-v3", "historical-analog-search-v3-status"}:
+        from .analog_engine import core as analog_engine
+
+        init_database()
+        with connection() as con:
+            action = (
+                analog_engine.run_analog_search
+                if args.command == "run-historical-analog-search-v3"
+                else analog_engine.analog_status
             )
             print(action(con))
     elif args.command == "dashboard":
