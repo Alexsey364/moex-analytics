@@ -24,4 +24,22 @@ CREATE TABLE IF NOT EXISTS current_fusion_research(
  evidence_json JSON,status VARCHAR,shadow_only BOOLEAN,probability_allowed BOOLEAN,
  PRIMARY KEY(run_id,secid,horizon)
 );
+CREATE TABLE IF NOT EXISTS fusion_policy_snapshots(
+ run_id VARCHAR,instrument VARCHAR,horizon INTEGER,dataset_version VARCHAR,
+ train_start DATE,train_end DATE,validation_start DATE,validation_end DATE,
+ holdout_start DATE,holdout_end DATE,component_models_json JSON,
+ component_versions_json JSON,feature_versions_json JSON,weights_json JSON,
+ weighting_method VARCHAR,selected_variant VARCHAR,abstention_threshold DOUBLE,
+ calibration_version VARCHAR,regime_policy_json JSON,analog_policy_json JSON,
+ scaler_version VARCHAR,pca_version VARCHAR,created_at TIMESTAMP,policy_hash VARCHAR,
+ immutable BOOLEAN,
+ PRIMARY KEY(run_id,instrument,horizon)
+);
+CREATE TABLE IF NOT EXISTS fusion_oos_predictions_v2(
+ run_id VARCHAR,secid VARCHAR,horizon INTEGER,cutoff DATE,variant VARCHAR,evaluation_mode VARCHAR,
+ predicted_return DOUBLE,actual_return DOUBLE,absolute_error DOUBLE,direction_correct BOOLEAN,
+ disagreement DOUBLE,abstained BOOLEAN,abstention_reason VARCHAR,information_end DATE,
+ split VARCHAR,policy_hash VARCHAR,shadow_only BOOLEAN,probability_allowed BOOLEAN,
+ PRIMARY KEY(run_id,secid,horizon,cutoff,variant,evaluation_mode)
+);
 """
