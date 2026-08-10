@@ -25,6 +25,8 @@ rules:
   no_short_selling: true
   cash_reserve: 0.0
   transaction_cost_bps: 10
+  slippage_bps: 5
+  delayed_execution_sessions: 1
 fundamental_source_matrix:
   BANK: [issuer_disclosures, cbr, moex_iss]
   OIL_GAS: [issuer_disclosures, government_tax_rules, cbr, moex_iss]

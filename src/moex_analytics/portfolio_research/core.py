@@ -177,6 +177,13 @@ def apply_constraints(weights, max_weight=1.0, frozen=None):
     return w
 
 
+def _board_security(payload):
+    block = payload.get("securities", {})
+    columns = block.get("columns", [])
+    rows = block.get("data", [])
+    return dict(zip(columns, rows[0], strict=True)) if rows else {}
+
+
 def discover_portfolio_instruments(con, client=None):  # pragma: no cover
     ensure_schema(con)
     client = client or MoexClient()
@@ -189,6 +196,11 @@ def discover_portfolio_instruments(con, client=None):  # pragma: no cover
         cols = payload["boards"]["columns"]
         boards = [dict(zip(cols, r, strict=True)) for r in payload["boards"]["data"]]
         primary = next((b for b in boards if b.get("is_primary") == 1), boards[0])
+        board_payload = client.get_json(
+            f"engines/stock/markets/shares/boards/{primary['boardid']}/securities/{secid}.json",
+            {"iss.meta": "off", "iss.only": "securities"},
+        )
+        board_security = _board_security(board_payload)
         history = [b for b in boards if b.get("history_from")]
         con.execute(
             "INSERT OR REPLACE INTO portfolio_instruments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,current_timestamp)",
@@ -200,7 +212,7 @@ def discover_portfolio_instruments(con, client=None):  # pragma: no cover
                 spec.get("share_class"),
                 description.get("TYPE"),
                 primary.get("boardid"),
-                description.get("LOTSIZE"),
+                board_security.get("LOTSIZE"),
                 spec.get("sector"),
                 spec.get("sector"),
                 description.get("LISTLEVEL"),

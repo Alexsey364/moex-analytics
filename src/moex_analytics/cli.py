@@ -550,6 +550,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("opportunity-research-status")
     sub.add_parser("run-multi-horizon-research")
     sub.add_parser("multi-horizon-research-status")
+    sub.add_parser("run-cash-aware-portfolio-optimizer")
+    sub.add_parser("cash-aware-portfolio-optimizer-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1883,6 +1885,17 @@ def main() -> None:
                 multi_horizon_engine.run_multi_horizon_research
                 if args.command == "run-multi-horizon-research"
                 else multi_horizon_engine.multi_horizon_status
+            )
+            print(action(con))
+    elif args.command in {"run-cash-aware-portfolio-optimizer", "cash-aware-portfolio-optimizer-status"}:
+        from .portfolio_optimizer import core as portfolio_optimizer
+
+        init_database()
+        with connection() as con:
+            action = (
+                portfolio_optimizer.run_portfolio_optimizer
+                if args.command == "run-cash-aware-portfolio-optimizer"
+                else portfolio_optimizer.optimizer_status
             )
             print(action(con))
     elif args.command == "dashboard":
