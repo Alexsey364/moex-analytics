@@ -231,11 +231,15 @@ def render_today():
             st.caption(f"Главный риск: {row.top_negative} · Следующий транш: до 10% очередного пополнения")
     if st.button("Обновить анализ сейчас"):
         _run_recalculation()
-    live = _q("SELECT count(*) matured FROM forecast_outcomes WHERE outcome_status='matured'")
+    live = _q(
+        "SELECT (SELECT count(*) FROM forecast_registry) total,"
+        "(SELECT count(*) FROM forecast_outcomes WHERE outcome_status='matured') matured"
+    )
     matured = int(live.iloc[0].matured) if not live.empty else 0
+    total = int(live.iloc[0].total) if not live.empty else 0
     st.caption(
-        f"Модель проверена на {matured} live-прогнозах. "
-        + ("Live-история пока накапливается." if matured < 20 else "См. качество прогнозов.")
+        f"Реальная проверка моделей: {matured} / {total} прогнозов созрело. "
+        + ("Пока выборка мала." if matured < 20 else "См. страницу «Реальная проверка».")
     )
 
 

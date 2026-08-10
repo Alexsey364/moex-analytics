@@ -222,3 +222,62 @@ def render_live_evidence():
     if not latest.empty and int(latest.iloc[0].matured_new):
         matured_new = int(latest.iloc[0].matured_new)
         st.success(f"Созрело {matured_new} новых прогнозов. Качество моделей пересчитано.")
+
+
+def render_live_validation():
+    st.header("Реальная проверка")
+    totals = _q(
+        "SELECT (SELECT count(*) FROM forecast_registry) total,"
+        "(SELECT count(*) FROM forecast_outcomes WHERE outcome_status='matured') matured,"
+        "(SELECT count(*) FROM forecast_outcomes WHERE outcome_status='matured' "
+        "AND direction_correct) correct,"
+        "(SELECT count(*) FROM forecast_outcomes WHERE outcome_status='matured' "
+        "AND direction_correct=false) wrong,"
+        "(SELECT count(*) FROM forecast_outcomes WHERE outcome_status='matured' "
+        "AND neutral_hit) neutral"
+    )
+    if totals.empty:
+        st.info("Live validation ещё не рассчитан.")
+        return
+    row = totals.iloc[0]
+    columns = st.columns(6)
+    columns[0].metric("Всего", int(row.total))
+    columns[1].metric("Созрело", int(row.matured))
+    columns[2].metric("В ожидании", int(row.total - row.matured))
+    columns[3].metric("Верное направление", int(row.correct))
+    columns[4].metric("Ошибки", int(row.wrong))
+    columns[5].metric("Нейтральные", int(row.neutral))
+    if int(row.matured) < 10:
+        st.warning("Sample status: insufficient. Сильные live-выводы запрещены.")
+    scorecards = _q(
+        "SELECT dimension_value secid,horizon_sessions horizon,model_version,observations,"
+        "unique_cutoffs,effective_n,direction_accuracy,balanced_accuracy,mae,rmse,"
+        "median_return_error,mean_favorable_excursion,mean_adverse_excursion,coverage_90,"
+        "neutral_hit_rate,sample_status FROM live_validation_scorecards ORDER BY secid,horizon"
+    )
+    st.subheader("По акциям и горизонтам")
+    if scorecards.empty:
+        st.info("Нет созревших результатов; scorecards готовы к первому outcome.")
+    else:
+        secid = st.selectbox("Акция", sorted(scorecards.secid.unique()), key="live_validation_stock")
+        st.dataframe(scorecards[scorecards.secid == secid], use_container_width=True, hide_index=True)
+    st.subheader("Baseline и shadow — только same-date")
+    st.dataframe(_q(
+        "SELECT secid,horizon_sessions,competitor,matched_dates,effective_n,advantage,status,reason "
+        "FROM live_model_duels ORDER BY secid,horizon_sessions,competitor"
+    ), use_container_width=True, hide_index=True)
+    st.caption(
+        "Если competitor не был сохранён до результата на той же дате, "
+        "duel не реконструируется задним числом."
+    )
+    examples = _q(
+        "SELECT secid,horizon_sessions,prediction,actual_return,magnitude_error,direction_result,"
+        "regime,model_disagreement,causality_warning FROM live_error_diagnostics "
+        "ORDER BY created_at DESC LIMIT 20"
+    )
+    st.subheader("Реальные правильные и ошибочные примеры")
+    if examples.empty:
+        st.info("Реальных matured examples пока нет.")
+    else:
+        st.dataframe(examples, use_container_width=True, hide_index=True)
+    render_forecast_vs_fact()

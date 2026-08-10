@@ -516,6 +516,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("live-evidence-status")
     sub.add_parser("forecast-maturity-calendar")
     sub.add_parser("evaluate-live-evidence")
+    sub.add_parser("live-validation-status")
+    sub.add_parser("evaluate-live-validation")
+    sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -875,6 +878,26 @@ def main() -> None:
                 result = evaluate_live_evidence(con)
             else:
                 result = live_evidence_status(con)
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {
+        "live-validation-status",
+        "evaluate-live-validation",
+        "run-live-informed-research-cycle",
+    }:
+        from .portfolio_research.live_validation import (
+            evaluate_live_validation,
+            live_validation_status,
+            run_live_informed_research_cycle,
+        )
+
+        init_database()
+        with connection() as con:
+            if args.command == "evaluate-live-validation":
+                result = evaluate_live_validation(con)
+            elif args.command == "run-live-informed-research-cycle":
+                result = run_live_informed_research_cycle(con)
+            else:
+                result = live_validation_status(con)
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {
         "data-inventory",

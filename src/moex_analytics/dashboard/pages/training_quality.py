@@ -3,6 +3,11 @@
 import streamlit as st
 
 from moex_analytics.dashboard.data_access import read_connection, table_exists
+from moex_analytics.database import connection
+from moex_analytics.portfolio_research.live_validation import (
+    apply_review_decision,
+    save_review_decision,
+)
 
 
 def render_corporate_actions() -> None:
@@ -53,7 +58,7 @@ def render_training_universe() -> None:
         st.caption(f"Frozen dataset {row[4]}, cutoff {row[5]}")
         st.dataframe(
             con.execute(
-                """SELECT quality_tier,count(DISTINCT secid) securities,count(*) rows
+                """SELECT quality_tier,count(DISTINCT secid) securities,count(*) row_count
                 FROM historical_training_panel WHERE dataset_version=? GROUP BY 1 ORDER BY 1""",
                 [row[4]],
             ).df(),
@@ -239,3 +244,74 @@ def render_predictive_context() -> None:
             use_container_width=True,
         )
         st.warning("Urals и fertilizer prices не подменены: requires_paid_data.")
+
+
+def render_manual_review() -> None:
+    st.header("Manual evidence review")
+    st.warning(
+        "Parser guesses не принимаются автоматически. Accept требует документные и PIT-реквизиты; "
+        "изменяется только research-слой."
+    )
+    review_type = st.radio("Тип", ("fundamental", "corporate_action"), horizontal=True)
+    with read_connection() as con:
+        if review_type == "fundamental":
+            if not table_exists(con, "fundamental_manual_review_candidates"):
+                st.info("Fundamental candidates отсутствуют.")
+                return
+            frame = con.execute(
+                "SELECT candidate_id,issuer,period,metric,document,page_table,row_label,"
+                "candidate_value,unit,parser_confidence,review_reason,status "
+                "FROM fundamental_manual_review_candidates ORDER BY issuer,period,metric"
+            ).df()
+        else:
+            if not table_exists(con, "corporate_action_candidate_episodes"):
+                st.info("Corporate-action candidates отсутствуют.")
+                return
+            frame = con.execute(
+                "SELECT episode_id candidate_id,secid,date_from,date_to,priority,raw_price_before,"
+                "raw_price_after,observed_ratio,candidate_ratio,candidate_type,evidence_status,"
+                "review_status FROM corporate_action_candidate_episodes "
+                "WHERE review_status!='auto_validated' ORDER BY priority,secid,date_from"
+            ).df()
+    if frame.empty:
+        st.info("Нет кандидатов, ожидающих review.")
+        return
+    candidate_id = st.selectbox("Candidate", frame.candidate_id.tolist(), key="review_candidate")
+    selected = frame[frame.candidate_id == candidate_id]
+    st.dataframe(selected, use_container_width=True, hide_index=True)
+    document = selected.iloc[0].get("document")
+    if document:
+        st.caption(f"Document preview reference: {document}")
+    reviewer = st.text_input("Reviewer", key="reviewer")
+    decision = st.radio("Decision", ("reject", "accept"), horizontal=True)
+    evidence = {}
+    if review_type == "fundamental" and decision == "accept":
+        evidence["reporting_standard"] = st.selectbox("Standard", ("IFRS", "RAS"))
+        evidence["publication_date"] = str(st.date_input("Publication date"))
+        evidence["source_hash"] = st.text_input("Official source hash")
+    elif review_type == "corporate_action" and decision == "accept":
+        evidence["official_source"] = st.text_input("Official source")
+        evidence["document_hash"] = st.text_input("Document hash")
+        evidence["publication_date"] = str(st.date_input("Publication date"))
+        evidence["effective_date"] = str(st.date_input("Effective date"))
+    if st.button("Сохранить решение", type="primary"):
+        try:
+            with connection() as con:
+                save_review_decision(
+                    con, review_type=review_type, candidate_id=candidate_id,
+                    decision=decision, reviewer=reviewer, evidence=evidence,
+                )
+        except Exception as exc:
+            st.error(f"Решение не сохранено: {exc}")
+        else:
+            st.success("Решение сохранено. Данные ещё не применены.")
+    if decision == "accept" and st.button("Применить подтверждённое решение"):
+        try:
+            with connection() as con:
+                result = apply_review_decision(
+                    con, review_type=review_type, candidate_id=candidate_id
+                )
+        except Exception as exc:
+            st.error(f"Применение остановлено: {exc}")
+        else:
+            st.success(result["status"])

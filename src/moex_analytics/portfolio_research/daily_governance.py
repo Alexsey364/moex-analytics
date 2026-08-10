@@ -177,9 +177,9 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
                 result = capture_daily_forecasts(con)
                 new_forecasts, status = result["inserted"], result["status"]
             elif dataset == "forecast_evaluation":
-                from .live_evidence import evaluate_live_evidence
+                from .live_validation import evaluate_live_validation
 
-                result = evaluate_live_evidence(con)
+                result = evaluate_live_validation(con)
                 evidence_result = result
                 matured = result["matured_new"]
                 build_governance_metrics(con)
