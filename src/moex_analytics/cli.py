@@ -555,6 +555,8 @@ def build_parser() -> argparse.ArgumentParser:
     marathon = sub.add_parser("run-predictive-research-marathon")
     marathon.add_argument("--max-runtime-hours", type=float, default=10.0)
     sub.add_parser("predictive-research-marathon-status")
+    sub.add_parser("run-long-horizon-ranking-validation")
+    sub.add_parser("long-horizon-ranking-validation-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1915,6 +1917,19 @@ def main() -> None:
             else:
                 result = predictive_marathon.marathon_status(con)
             print(result)
+    elif args.command in {
+        "run-long-horizon-ranking-validation", "long-horizon-ranking-validation-status"
+    }:
+        from .long_horizon_ranking import core as long_horizon_ranking
+
+        init_database()
+        with connection() as con:
+            action = (
+                long_horizon_ranking.run_long_horizon_validation
+                if args.command == "run-long-horizon-ranking-validation"
+                else long_horizon_ranking.ranking_validation_status
+            )
+            print(action(con))
     elif args.command == "dashboard":
         from .dashboard.launcher import mark_process
 
