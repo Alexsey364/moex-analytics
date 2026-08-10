@@ -26,6 +26,8 @@ INSTRUMENTS = {
     "moex_consumer": ("MOEXCN", "stock", "index", "SNDX", "Consumer sector index"),
     "moex_transport": ("MOEXTN", "stock", "index", "SNDX", "Transport sector index"),
     "moex_power": ("MOEXEU", "stock", "index", "SNDX", "Electric utilities index"),
+    "moex_telecom": ("MOEXTL", "stock", "index", "SNDX", "Telecommunication sector index"),
+    "moex_chemicals": ("MOEXCH", "stock", "index", "SNDX", "Chemicals sector index"),
 }
 
 

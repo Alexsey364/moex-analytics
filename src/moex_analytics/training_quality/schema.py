@@ -171,4 +171,38 @@ CREATE TABLE IF NOT EXISTS fundamental_recovery_runs(
  manual_review_candidates INTEGER,leakage_violations INTEGER,requests INTEGER,
  runtime_seconds DOUBLE,production_changes INTEGER,details_json JSON
 );
+CREATE TABLE IF NOT EXISTS predictive_context_coverage(
+ run_id VARCHAR,dataset_family VARCHAR,series_id VARCHAR,rows BIGINT,earliest DATE,latest DATE,
+ source VARCHAR,license VARCHAR,pit_status VARCHAR,quality_status VARCHAR,limitation VARCHAR,
+ PRIMARY KEY(run_id,dataset_family,series_id)
+);
+CREATE TABLE IF NOT EXISTS synchronized_predictive_context(
+ run_id VARCHAR,trade_date DATE,secid VARCHAR,issuer_group VARCHAR,close DOUBLE,
+ asset_return_20 DOUBLE,asset_return_60 DOUBLE,market_return_20 DOUBLE,market_return_60 DOUBLE,
+ sector_series VARCHAR,sector_return_20 DOUBLE,sector_return_60 DOUBLE,sector_return_120 DOUBLE,
+ sector_return_250 DOUBLE,sector_volatility_60 DOUBLE,sector_drawdown DOUBLE,
+ sector_relative_market_60 DOUBLE,issuer_relative_sector_20 DOUBLE,issuer_relative_sector_60 DOUBLE,
+ cbr_usd_rub DOUBLE,fx_return_20 DOUBLE,fx_volatility_60 DOUBLE,key_rate DOUBLE,ruonia DOUBLE,
+ rusfar DOUBLE,zcyc_level DOUBLE,zcyc_slope DOUBLE,rate_shock_20 DOUBLE,brent DOUBLE,
+ brent_return_20 DOUBLE,brent_volatility_60 DOUBLE,gas DOUBLE,gas_return_20 DOUBLE,
+ rvi DOUBLE,rgbi DOUBLE,breadth_balance DOUBLE,liquidity_percentile DOUBLE,
+ context_available_from TIMESTAMP,PRIMARY KEY(run_id,trade_date,secid)
+);
+CREATE TABLE IF NOT EXISTS predictive_factor_exposures(
+ run_id VARCHAR,trade_date DATE,secid VARCHAR,rolling_window INTEGER,market_beta DOUBLE,
+ sector_beta DOUBLE,fx_beta DOUBLE,rate_sensitivity DOUBLE,commodity_beta DOUBLE,
+ observations INTEGER,structural_break_score DOUBLE,quality_status VARCHAR,
+ PRIMARY KEY(run_id,trade_date,secid,rolling_window)
+);
+CREATE TABLE IF NOT EXISTS predictive_context_ablation(
+ run_id VARCHAR,secid VARCHAR,horizon INTEGER,experiment VARCHAR,rows BIGINT,folds INTEGER,
+ balanced_accuracy DOUBLE,improvement DOUBLE,ci_low DOUBLE,ci_high DOUBLE,status VARCHAR,
+ details_json JSON,PRIMARY KEY(run_id,secid,horizon,experiment)
+);
+CREATE TABLE IF NOT EXISTS predictive_context_runs(
+ run_id VARCHAR PRIMARY KEY,started_at TIMESTAMP,finished_at TIMESTAMP,status VARCHAR,
+ sector_rows BIGINT,fx_rows BIGINT,rates_rows BIGINT,commodity_rows BIGINT,
+ synchronized_rows BIGINT,exposure_rows BIGINT,ablation_rows BIGINT,requests INTEGER,
+ runtime_seconds DOUBLE,production_changes INTEGER,details_json JSON
+);
 """

@@ -102,6 +102,7 @@ advanced_pages = {
     "PIT-фундаментал и сектор": training_quality.render_issuer_context,
     "Issuer-level evidence": training_quality.render_issuer_evidence,
     "Official fundamental recovery": training_quality.render_fundamental_recovery,
+    "Expanded predictive context": training_quality.render_predictive_context,
     "Controlled Self-Learning Loop": learning_cycle.render_advanced,
     "Portfolio-aware learning": portfolio_learning.render,
     "Meta confidence и abstention": meta_learning.render,

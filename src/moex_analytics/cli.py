@@ -511,6 +511,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("issuer-evidence-status")
     sub.add_parser("recover-official-fundamentals")
     sub.add_parser("fundamental-recovery-status")
+    sub.add_parser("expand-predictive-context")
+    sub.add_parser("expanded-context-status")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
     receipt.add_argument("--update-id")
@@ -838,6 +840,17 @@ def main() -> None:
                 recover_official_fundamentals(con)
                 if args.command == "recover-official-fundamentals"
                 else fundamental_recovery_status(con)
+            )
+            print(json.dumps(result, default=str, ensure_ascii=True))
+    elif args.command in {"expand-predictive-context", "expanded-context-status"}:
+        from .training_quality import expand_predictive_context, predictive_context_status
+
+        init_database()
+        with connection() as con:
+            result = (
+                expand_predictive_context(con)
+                if args.command == "expand-predictive-context"
+                else predictive_context_status(con)
             )
             print(json.dumps(result, default=str, ensure_ascii=True))
     elif args.command in {

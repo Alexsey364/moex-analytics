@@ -1,5 +1,6 @@
 """Historical training-quality resolution stages."""
 
+from .context_expansion import expand_predictive_context, predictive_context_status
 from .corporate_actions import build_corporate_action_quality, corporate_action_status
 from .expansion import expand_quality_universe, expansion_status
 from .fundamental_recovery import fundamental_recovery_status, recover_official_fundamentals
@@ -14,11 +15,13 @@ __all__ = [
     "build_training_universe",
     "clean_relearning_status",
     "corporate_action_status",
+    "expand_predictive_context",
     "expand_quality_universe",
     "expansion_status",
     "fundamental_recovery_status",
     "issuer_context_status",
     "issuer_evidence_status",
+    "predictive_context_status",
     "recover_official_fundamentals",
     "run_clean_data_relearning",
     "run_issuer_evidence_research",

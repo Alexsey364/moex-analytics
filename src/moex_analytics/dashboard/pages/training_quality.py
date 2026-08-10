@@ -202,3 +202,40 @@ def render_fundamental_recovery() -> None:
             use_container_width=True,
         )
         st.caption(f"PIT leakage violations: {run[7]}. TLS validation was never disabled.")
+
+
+def render_predictive_context() -> None:
+    st.header("Sector, commodity и macro predictive context")
+    with read_connection() as con:
+        if not table_exists(con, "predictive_context_runs"):
+            st.info("Stage 38 ещё не рассчитан.")
+            return
+        run = con.execute(
+            """SELECT run_id,sector_rows,fx_rows,rates_rows,commodity_rows,
+            synchronized_rows,exposure_rows,ablation_rows,runtime_seconds
+            FROM predictive_context_runs ORDER BY started_at DESC LIMIT 1"""
+        ).fetchone()
+        cols = st.columns(4)
+        cols[0].metric("Synchronized", run[5])
+        cols[1].metric("Factor exposures", run[6])
+        cols[2].metric("Ablations", run[7])
+        cols[3].metric("Runtime, sec", round(run[8] or 0, 1))
+        st.dataframe(
+            con.execute(
+                """SELECT dataset_family,series_id,rows,earliest,latest,pit_status,
+                quality_status,limitation FROM predictive_context_coverage
+                WHERE run_id=? ORDER BY dataset_family,series_id""",
+                [run[0]],
+            ).df(),
+            use_container_width=True,
+        )
+        st.dataframe(
+            con.execute(
+                """SELECT secid,horizon,experiment,rows,balanced_accuracy,improvement,
+                ci_low,ci_high,status FROM predictive_context_ablation
+                WHERE run_id=? ORDER BY secid,horizon,experiment""",
+                [run[0]],
+            ).df(),
+            use_container_width=True,
+        )
+        st.warning("Urals и fertilizer prices не подменены: requires_paid_data.")
