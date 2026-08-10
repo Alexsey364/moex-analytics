@@ -532,6 +532,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("event-conditioned-analog-status")
     sub.add_parser("run-predictive-fusion")
     sub.add_parser("predictive-fusion-status")
+    sub.add_parser("run-strict-analog-validation")
+    sub.add_parser("strict-analog-validation-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1766,6 +1768,17 @@ def main() -> None:
                 fusion_engine.run_predictive_fusion
                 if args.command == "run-predictive-fusion"
                 else fusion_engine.fusion_status
+            )
+            print(action(con))
+    elif args.command in {"run-strict-analog-validation", "strict-analog-validation-status"}:
+        from .validation_engine import core as validation_engine
+
+        init_database()
+        with connection() as con:
+            action = (
+                validation_engine.run_strict_validation
+                if args.command == "run-strict-analog-validation"
+                else validation_engine.validation_status
             )
             print(action(con))
     elif args.command == "dashboard":
