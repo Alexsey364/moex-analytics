@@ -7,6 +7,7 @@ from moex_analytics.dashboard.human_experience import (
     FORBIDDEN_BASIC_TERMS,
     action_text,
     horizon_state,
+    human_explanation,
     human_status,
     percent,
     portfolio_verdict,
@@ -50,6 +51,9 @@ def test_central_decision_semantics_are_consistent():
     assert action_text("do_not_increase") == "🟠 Пока не увеличивать"
     assert horizon_state("небольшой негативный перевес") == "🟠 слабее альтернатив"
     assert horizon_state("нейтрально") == "🟡 смешанная картина"
+    explanation = human_explanation("Incomplete normalized history; range is not production-ready")
+    assert "исследовательского блока" in explanation
+    assert "Incomplete" not in explanation
 
 
 def test_forecast_marker_handles_nullable_database_booleans():

@@ -78,6 +78,18 @@ def action_text(action_group: object) -> str:
     }.get(str(action_group), "🟡 Сильного сигнала нет")
 
 
+def human_explanation(value: object) -> str:
+    raw = str(value or "").strip()
+    lowered = raw.lower()
+    if "incomplete normalized history" in lowered:
+        return "История для одного исследовательского блока неполна; этот блок не усиливает вывод."
+    if "issuer-specific validated" in lowered:
+        return "Связь с подтверждёнными данными конкретной компании пока не доказана."
+    if "probability" in lowered and "gate" in lowered:
+        return "Числовая вероятность пока не прошла правила публикации."
+    return raw or "Подтверждённая причина пока не выделена."
+
+
 def security_name(secid: str) -> str:
     return SECURITY_NAMES.get(secid, secid)
 

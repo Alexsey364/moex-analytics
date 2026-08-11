@@ -12,6 +12,7 @@ from moex_analytics.dashboard.human_experience import (
     DecisionBlock,
     action_text,
     horizon_state,
+    human_explanation,
     percent,
     portfolio_verdict,
     rubles,
@@ -352,7 +353,7 @@ def render_today():
     if not alerts.empty:
         st.subheader("ВАЖНО")
         for row in alerts.head(5).itertuples():
-            reason = row.top_negative or row.risk_view
+            reason = human_explanation(row.top_negative or row.risk_view)
             st.warning(f"{status_label(row.visual_status)} · {security_name(row.secid)}: {reason}")
     st.subheader("ЧТО ИЗМЕНИЛОСЬ")
     for row in frame.itertuples():
@@ -642,8 +643,8 @@ def _allocation_inputs(frame):
             "weight": row.equity_weight,
             "risk_contribution": row.risk_contribution,
             "confidence": row.confidence_label,
-            "reason": row.top_positive,
-            "risk": row.top_negative,
+            "reason": human_explanation(row.top_positive),
+            "risk": human_explanation(row.top_negative),
             "lot_size": lot_sizes.get(row.secid),
             "liquidity_ok": row.data_status in {"sufficient", "validated_current"}
             and pd.notna(lot_sizes.get(row.secid)),
@@ -819,7 +820,7 @@ def render_ask():
                 return
             row = selected_row.iloc[0]
             st.markdown(f"### {security_name(requested)} · {action_text(row.action_group)}")
-            st.write(f"**Главная причина:** {row.top_negative or row.risk_view}")
+            st.write(f"**Главная причина:** {human_explanation(row.top_negative or row.risk_view)}")
             st.write(f"**На месяц:** {horizon_state(row.medium_term_view)}")
             st.write(f"**На 3–6 месяцев:** {horizon_state(row.long_term_view)}")
             st.markdown("**Что может улучшить вывод:**")
