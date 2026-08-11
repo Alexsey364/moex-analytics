@@ -570,6 +570,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("news-source-registry-status")
     sub.add_parser("ingest-live-news")
     sub.add_parser("news-intelligence-status")
+    sub.add_parser("build-news-reaction-memory")
+    sub.add_parser("news-reaction-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -2013,6 +2015,15 @@ def main() -> None:
             action = (news_intelligence.ingest_live_news
                       if args.command == "ingest-live-news"
                       else news_intelligence.news_status)
+            print(action(con))
+    elif args.command in {"build-news-reaction-memory", "news-reaction-status"}:
+        from .news_reaction import core as news_reaction
+
+        init_database()
+        with connection() as con:
+            action = (news_reaction.build_reaction_memory
+                      if args.command == "build-news-reaction-memory"
+                      else news_reaction.reaction_status)
             print(action(con))
     elif args.command == "dashboard":
         from .dashboard.launcher import mark_process
