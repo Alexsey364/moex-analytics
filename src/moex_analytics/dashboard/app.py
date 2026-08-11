@@ -66,6 +66,7 @@ from moex_analytics.dashboard.pages import (
     unblocked_experiment,
     uncertainty,
     update_data,
+    whole_market,
 )
 from moex_analytics.dashboard.visual_semantics import theme_css
 from moex_analytics.database import database_path, init_database
@@ -121,6 +122,7 @@ st.caption(
 )
 
 advanced_pages = {
+    "Whole Market Predictive Evidence": whole_market.render_advanced,
     "News Intelligence — audit": news_intelligence.render,
     "Historical Analog Explorer 3.0": predictive_command_center.render_explorer,
     "Visual Forecast Lab 3.0 — Opportunity Map": predictive_command_center.render_opportunity,
@@ -285,6 +287,7 @@ advanced_pages = {
 }
 basic_pages = {
     "Сегодня": human_portfolio.render_today,
+    "Рынок и прогноз": whole_market.render,
     "Мой портфель": human_portfolio.render_portfolio,
     "Что купить / куда вложить": human_portfolio.render_allocation,
     "Мои акции": human_portfolio.render_stocks,
