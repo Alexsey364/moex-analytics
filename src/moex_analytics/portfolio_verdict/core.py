@@ -11,7 +11,7 @@ import duckdb
 
 from .schema import ensure_schema
 
-VERSION = "stage82-v1"
+VERSION = "stage82-v3"
 HORIZON_LABELS = {5: "сейчас", 20: "1 месяц", 60: "3 месяца", 120: "6 месяцев", 250: "1 год"}
 
 
@@ -56,8 +56,8 @@ def build_portfolio_verdicts(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
     positions = {}
     if con.execute("SELECT count(*) FROM portfolio_positions").fetchone()[0]:
         snapshot = con.execute(
-            """SELECT snapshot_id FROM portfolio_positions GROUP BY snapshot_id
-            ORDER BY snapshot_id DESC LIMIT 1"""
+            """SELECT snapshot_id FROM portfolio_snapshots
+            WHERE status='real' ORDER BY created_at DESC LIMIT 1"""
         ).fetchone()[0]
         positions = dict(
             con.execute(
@@ -80,7 +80,9 @@ def build_portfolio_verdicts(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
         eligible = [item for item in blocks if item[2]]
         positive = sum(item[4] is not None and item[4] > 0 for item in eligible)
         negative = sum(item[4] is not None and item[4] < 0 for item in eligible)
-        directional = any(item[0] not in {"risk", "portfolio_concentration"} for item in eligible)
+        # MAE/rank precision evidence is not a directional edge. Only a block
+        # explicitly validated for direction may unlock a positive action.
+        directional = any(item[0] == "validated_direction" for item in eligible)
         strengths = [item[1] for item in blocks]
         strength = (
             "stronger"
