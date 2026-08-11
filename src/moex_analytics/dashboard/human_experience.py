@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime
 
 SECURITY_NAMES = {
@@ -44,6 +45,38 @@ FORBIDDEN_BASIC_TERMS = (
     "abstain",
 )
 
+HORIZON_NAMES = {1: "1 день", 5: "1 неделя", 20: "1 месяц", 60: "3 месяца", 120: "6 месяцев", 250: "1 год"}
+
+
+@dataclass(frozen=True)
+class DecisionBlock:
+    name: str
+    status: str
+    explanation: str
+    effect: str
+    affects_decision: bool
+    strength: str
+
+
+def horizon_state(value: object) -> str:
+    raw = str(value or "").lower()
+    if any(token in raw for token in ("позитив", "сильнее", "small_positive", "↑")):
+        return "🟢 сильнее альтернатив"
+    if any(token in raw for token in ("негатив", "слабее", "small_negative", "↓")):
+        return "🟠 слабее альтернатив"
+    if any(token in raw for token in ("нейтрал", "mixed", "→")):
+        return "🟡 смешанная картина"
+    return "⚪ данных мало"
+
+
+def action_text(action_group: object) -> str:
+    return {
+        "consider": "🟢 Можно рассматривать небольшой транш",
+        "wait": "🟡 Держать и наблюдать",
+        "do_not_increase": "🟠 Пока не увеличивать",
+        "insufficient_data": "⚪ Недостаточно данных",
+    }.get(str(action_group), "🟡 Сильного сигнала нет")
+
 
 def security_name(secid: str) -> str:
     return SECURITY_NAMES.get(secid, secid)
@@ -71,8 +104,18 @@ def russian_date(value: date | datetime | None) -> str:
     if value is None:
         return "—"
     months = (
-        "января", "февраля", "марта", "апреля", "мая", "июня",
-        "июля", "августа", "сентября", "октября", "ноября", "декабря",
+        "января",
+        "февраля",
+        "марта",
+        "апреля",
+        "мая",
+        "июня",
+        "июля",
+        "августа",
+        "сентября",
+        "октября",
+        "ноября",
+        "декабря",
     )
     return f"{value.day} {months[value.month - 1]} {value.year}"
 

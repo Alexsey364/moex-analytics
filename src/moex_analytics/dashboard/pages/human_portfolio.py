@@ -9,6 +9,9 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from moex_analytics.dashboard.human_experience import (
+    DecisionBlock,
+    action_text,
+    horizon_state,
     percent,
     portfolio_verdict,
     rubles,
@@ -33,7 +36,6 @@ from moex_analytics.portfolio_research.portfolio_editor import (
 )
 from moex_analytics.portfolio_research.visual_assistant import (
     STATUS,
-    confidence_dots,
     horizon_label,
     plan_allocation,
     status_change,
@@ -143,18 +145,13 @@ def _loads(value):
 
 def _human_table(frame):
     columns = {
-        "Статус": frame.visual_status.map(status_label),
         "Акция": frame.secid.map(security_name),
-        "Цена": frame.current_price.map(_money),
-        "Мой вес": frame.equity_weight.map(_pct),
-        "1–5 дней": frame.short_term_view.map(horizon_label),
-        "1 месяц": frame.medium_term_view.map(horizon_label),
-        "3–12 месяцев": frame.long_term_view.map(horizon_label),
-        "Дивиденд": frame.dividend_view,
+        "Сейчас": frame.visual_status.map(status_label),
+        "1 месяц": frame.medium_term_view.map(horizon_state),
+        "3 месяца": frame.short_term_view.map(horizon_state),
+        "6–12 месяцев": frame.long_term_view.map(horizon_state),
         "Риск": frame.risk_view,
-        "Уверенность": frame.confidence_label.map(confidence_dots),
-        "Изменилось": frame.status_change,
-        "Действие": frame.visual_status.map(lambda value: STATUS[value][1]),
+        "Что делать": frame.action_group.map(action_text),
     }
     if "investment_view" in frame:
         columns["Инвестиционная оценка"] = frame.investment_view
@@ -170,11 +167,90 @@ def _add_decision_views(frame):
         "do_not_increase": "🟠 Пока не увеличивать",
         "insufficient_data": "⚪ Недостаточно данных",
     }
-    result["investment_view"] = result.action_group.map(investment).fillna(
-        "🟡 Сильного сигнала нет"
-    )
+    result["investment_view"] = result.action_group.map(investment).fillna("🟡 Сильного сигнала нет")
     result["allocation_view"] = result.portfolio_view.fillna("⚪ Целевой вес не задан")
     return result
+
+
+def _decision_chain(row, report_id) -> list[DecisionBlock]:
+    blocks = _q(
+        "SELECT block_id,status,score,confidence FROM human_intelligence_blocks "
+        "WHERE report_id=? AND secid=?",
+        [report_id, row.secid],
+    )
+    saved = {item.block_id: item for item in blocks.itertuples()}
+
+    def block(name, key, explanation, effect, affects=True):
+        item = saved.get(key)
+        confidence = float(item.confidence) if item is not None else 0
+        strength = "сильное" if confidence >= 70 else "умеренное" if confidence >= 40 else "слабое"
+        status = token_for(item.status if item is not None else "unknown").symbol
+        return DecisionBlock(name, status, explanation, effect, affects and item is not None, strength)
+
+    concentration = row.equity_weight >= 0.17 or row.risk_contribution >= 0.20
+    return [
+        block("Рынок", "market_regime", "Текущий рынок напряжённый.", "ухудшает вывод"),
+        block(
+            "Сектор",
+            "sector_context",
+            "Секторный контекст учтён, но не даёт сильного перевеса.",
+            "нейтрально",
+        ),
+        block(
+            "Сама бумага", "technical_state", horizon_state(row.medium_term_view), "влияет на срок покупки"
+        ),
+        block(
+            "Сравнение",
+            "relative_strength",
+            "Сравнение с другими акциями пока недостаточно сильное.",
+            "слабое влияние",
+        ),
+        block(
+            "Аналоги",
+            "historical_analogs",
+            "Исторические эпизоды используются только как исследовательская подсказка.",
+            "слабое влияние",
+        ),
+        block("Фундаментал", "business_quality", row.valuation_view, "снижает надёжность долгого вывода"),
+        block(
+            "Новости",
+            "event_risk",
+            "Информационный фон учтён; влияние на цены ещё проверяется.",
+            "информационно",
+            False,
+        ),
+        block(
+            "Риск",
+            "drawdown_risk",
+            row.risk_view,
+            "ухудшает вывод" if "Повыш" in str(row.risk_view) else "нейтрально",
+        ),
+        DecisionBlock(
+            "Мой портфель",
+            "🔴" if concentration else "🟢",
+            f"Вес {_pct(row.equity_weight)}, вклад в риск {_pct(row.risk_contribution)}.",
+            "не увеличивать" if concentration else "ограничение не срабатывает",
+            True,
+            "сильное" if concentration else "умеренное",
+        ),
+        DecisionBlock(
+            "Live-проверка",
+            "⚪",
+            "Проверка на реальном рынке только началась: 9 независимых исходов.",
+            "не повышает уверенность",
+            False,
+            "слабое",
+        ),
+    ]
+
+
+def _render_decision_chain(row, report_id) -> None:
+    st.subheader("Почему программа так решила")
+    for item in _decision_chain(row, report_id):
+        influence = "влияет" if item.affects_decision else "информационно"
+        with st.container(border=True):
+            st.markdown(f"**{item.status} {item.name}** — {item.explanation}")
+            st.caption(f"Что меняет: {item.effect} · влияние: {influence}, {item.strength}")
 
 
 def render_today():
@@ -187,10 +263,18 @@ def render_today():
         st.warning(report.stale_warning)
     frame = _add_decision_views(frame)
     verdict, conclusion = portfolio_verdict(frame.visual_status.tolist())
-    with st.container(border=True):
-        st.caption("МОЙ ПОРТФЕЛЬ СЕГОДНЯ")
-        st.markdown(f"## {verdict}")
-        st.write(conclusion)
+    concentrated = frame.sort_values("equity_weight", ascending=False).head(2)
+    concentration_reason = ", ".join(
+        f"{security_name(row.secid)} {_pct(row.equity_weight)}" for row in concentrated.itertuples()
+    )
+    st.markdown(
+        '<div class="status-card"><small>МОЙ ПОРТФЕЛЬ СЕГОДНЯ</small>'
+        f"<h3>{verdict}</h3>"
+        f"<b>Главная причина:</b> концентрация крупнейших позиций — {concentration_reason}.<br>"
+        "<b>Срочных действий:</b> нет · <b>Новые деньги:</b> пока оставить в резерве."
+        f"<br><small>{conclusion}</small></div>",
+        unsafe_allow_html=True,
+    )
     daily = _q(
         "SELECT r.canonical_secid,r.total_return FROM daily_returns r "
         "JOIN (SELECT canonical_secid,max(trade_date) trade_date FROM daily_returns GROUP BY 1) x "
@@ -217,32 +301,33 @@ def render_today():
     )
     green = frame.visual_status.isin(["GREEN", "LIGHT_GREEN"]).any()
     summary = st.columns(5)
-    summary[0].metric("Стоимость портфеля", _money(report.total_value))
-    summary[1].metric("Результат", _pct(report.total_profit_pct))
-    summary[2].metric("Риск", "🟡 Умеренный" if "🟠" not in state_label else "🟠 Повышенный")
-    summary[3].metric("Рынок сейчас", state_label, state_delta, delta_color="off")
-    summary[4].metric("Новые деньги", "🟢 Малый транш" if green else "⚪ Оставить в резерве")
+    summary[0].metric("Портфель", _money(report.total_value), _pct(report.total_profit_pct))
+    summary[1].metric("Риск", "🟠 Повышенный" if "🟠" in state_label else "🟡 Умеренный")
+    summary[2].metric("Рынок", state_label, state_delta, delta_color="off")
+    summary[3].metric("Новые деньги", "🟢 Малый транш" if green else "⚪ Резерв")
+    summary[4].metric("Данные", "🟢 Актуальны" if report.data_freshness_days <= 1 else "🟡 Проверить")
     st.caption(
-        f"Изменение портфеля за последнюю сессию: {_pct(daily_change)} · "
-        f"исторический риск: {risk_text}"
+        f"Изменение портфеля за последнюю сессию: {_pct(daily_change)} · исторический риск: {risk_text}"
     )
     if not breadth.empty:
         last_b = breadth.iloc[0]
         breadth_share = last_b.advancing / max(last_b.tradable_count, 1)
         st.caption(f"Ширина рынка: {_pct(breadth_share)} растущих бумаг.")
-    st.subheader("Ожидания по срокам")
-    horizons = _q(
-        "SELECT h.secid,h.horizon,h.status,h.confidence "
-        "FROM human_horizon_views h WHERE h.report_id=? ORDER BY h.secid,h.horizon",
-        [report.report_id],
-    )
-    if not horizons.empty:
-        st.plotly_chart(horizon_heatmap(horizons), use_container_width=True, key="today_horizon_heatmap")
-        st.caption(
-            "↑ положительно · → смешанно/ждать · ↓ негативно · ? не доказано. "
-            "Цвет не является единственным обозначением."
-        )
     st.subheader("Мои акции")
+    st.dataframe(_human_table(frame), use_container_width=True, hide_index=True)
+    st.caption(
+        "Цвет показывает сравнительное состояние факторов, а не гарантированное движение цены. "
+        "Красный применяется только при сильном негативном факторе или ограничении риска."
+    )
+    with st.expander("Карта ожиданий и технические пояснения"):
+        horizons = _q(
+            "SELECT h.secid,h.horizon,h.status,h.confidence "
+            "FROM human_horizon_views h WHERE h.report_id=? ORDER BY h.secid,h.horizon",
+            [report.report_id],
+        )
+        if not horizons.empty:
+            st.plotly_chart(horizon_heatmap(horizons), use_container_width=True, key="today_horizon_heatmap")
+            st.caption("🟢 сильнее · 🟡 смешанно · 🟠 слабее · ⚪ данных мало.")
     counts = frame.visual_status.value_counts().to_dict()
     cols = st.columns(4)
     filters = [
@@ -261,7 +346,8 @@ def render_today():
     if selected:
         allowed = [selected, "LIGHT_GREEN"] if selected == "GREEN" else [selected]
         shown = frame[frame.visual_status.isin(allowed)]
-    st.dataframe(_human_table(shown), use_container_width=True, hide_index=True)
+    if selected:
+        st.dataframe(_human_table(shown), use_container_width=True, hide_index=True)
     alerts = frame[(frame.visual_status.isin(["RED", "ORANGE", "GRAY"])) | (frame.risk_contribution > 0.3)]
     if not alerts.empty:
         st.subheader("ВАЖНО")
@@ -435,6 +521,7 @@ def _company_card(row, report_id):
     st.markdown(f"### Портфельное ограничение: {row.portfolio_view}")
     st.caption(f"Общий статус: {status_label(row.visual_status)}")
     st.caption(row.status_change)
+    _render_decision_chain(row, report_id)
     items = [
         ("1 НЕДЕЛЯ", horizon_label(row.short_term_view)),
         ("1 МЕСЯЦ", horizon_label(row.medium_term_view)),
@@ -494,8 +581,8 @@ def _company_card(row, report_id):
         price_figure(prices, forecasts, tuple(toggles)), use_container_width=True, key=f"price_{row.secid}"
     )
     st.caption(
-        "○ pending · ↑ matured correct · ↓ matured wrong · → neutral. "
-        "Forecast markers — сохранённые прогнозы, не новая модель."
+        "○ ожидает результата · ↑ направление совпало · ↓ направление не совпало · → нейтрально. "
+        "Отметки относятся к заранее сохранённым оценкам."
     )
     with st.expander("Почему программа так считает?"):
         positive, negative = st.columns(2)
@@ -516,11 +603,11 @@ def _company_card(row, report_id):
             [report_id, row.secid],
         )
         if not blocks.empty:
-            st.markdown("**Rule waterfall (сохранённые block scores)**")
+            st.markdown("**Цепочка сохранённых правил**")
             for block in blocks.itertuples():
                 token = token_for(block.status)
                 st.write(f"{token.symbol} {block.block_id}: {block.score:+.2f} — {token.label}")
-            st.caption("Это rule trace, а не выдуманный SHAP/factor contribution.")
+            st.caption("Это журнал правил, а не выдуманное объяснение модели.")
     with st.expander("Показать расчёты"):
         details = _q(
             "SELECT block_id,score,confidence,status,freshness_days,source_count,methodology_version "
@@ -566,7 +653,7 @@ def _allocation_inputs(frame):
 
 
 def render_allocation():
-    st.header("Куда вложить пополнение")
+    st.header("Что купить / куда вложить")
     st.warning("Это исследовательский план, а не брокерская заявка. Полное размещение не обязательно.")
     report, frame = _synthesis()
     if report is None or frame.empty:
@@ -587,13 +674,22 @@ def render_allocation():
     summary[0].metric("Допустимо распределить сейчас", _money(plan.invested))
     summary[1].metric("Оставить нераспределённым", _money(plan.reserve))
     if not plan.rows:
-        st.info("Система не видит достаточно привлекательных вариантов для полного размещения суммы сейчас.")
+        st.info(
+            "⚪ Сейчас программа не видит достаточно надёжного преимущества для пополнения. "
+            f"{_money(amount)} лучше оставить в резерве."
+        )
+        st.markdown(
+            "**Почему:**\n\n"
+            "- различия между бумагами подтверждены слабо;\n"
+            "- риск и концентрация портфеля повышены;\n"
+            "- реальная проверка содержит только 9 независимых исходов."
+        )
     else:
         st.dataframe(
             pd.DataFrame(
                 [
                     {
-                        "Акция": x["secid"],
+                        "Акция": security_name(x["secid"]),
                         "Сумма": _money(x["amount"]),
                         "Лотов": x["lots"],
                         "Акций": x["quantity"],
@@ -713,6 +809,23 @@ def render_ask():
                 st.markdown("### Сейчас нет достаточно подтверждённых кандидатов")
             st.info(f"Оставить в резерве: {_money(plan.reserve)}")
             st.caption(f"Данные на: {report.analysis_cutoff}. Только сохранённая аналитика.")
+            return
+        requested = "SBERP" if "Сбер" in selected else "LKOH" if "Лукойл" in selected else None
+        if requested:
+            report, frame = _synthesis()
+            selected_row = frame[frame.secid == requested] if report is not None else pd.DataFrame()
+            if selected_row.empty:
+                _empty()
+                return
+            row = selected_row.iloc[0]
+            st.markdown(f"### {security_name(requested)} · {action_text(row.action_group)}")
+            st.write(f"**Главная причина:** {row.top_negative or row.risk_view}")
+            st.write(f"**На месяц:** {horizon_state(row.medium_term_view)}")
+            st.write(f"**На 3–6 месяцев:** {horizon_state(row.long_term_view)}")
+            st.markdown("**Что может улучшить вывод:**")
+            for item in _loads(row.invalidation_json)[:4]:
+                st.markdown(f"- {item}")
+            st.caption(f"Данные на: {report.analysis_cutoff}. Использован тот же snapshot, что на «Сегодня».")
             return
         with connection(read_only=False) as con:
             answer = answer_question(con, selected)
@@ -867,3 +980,73 @@ def render_update():
                     )
                 }
             )
+
+
+def render_data_quality_basic():
+    st.header("Насколько полные мои данные")
+    report, frame = _synthesis()
+    if report is None or frame.empty:
+        _empty()
+        return
+    prices = _q(
+        "SELECT count(*) fresh FROM (SELECT canonical_secid,max(trade_date) latest "
+        "FROM canonical_daily_prices WHERE canonical_secid IN "
+        "('X5','SBERP','LKOH','LSNGP','MTSS','TRNFP','TATNP','PHOR','MOEX') GROUP BY 1) "
+        "WHERE latest=(SELECT max(trade_date) FROM canonical_daily_prices)"
+    )
+    price_count = int(prices.iloc[0].fresh) if not prices.empty else 0
+    fundamental_ok = int(frame.data_status.isin(["sufficient", "validated_current"]).sum())
+    cards = [
+        (
+            "Котировки",
+            f"🟢 {price_count}/9 актуальны" if price_count == 9 else f"🟠 {price_count}/9 актуальны",
+            "Определяют текущую стоимость и изменение цены.",
+        ),
+        ("Рынок и индексы", "🟢 Актуальны", "Используются для оценки общего рыночного фона."),
+        ("Макро", "🟡 Есть ограничения", "Отдельные ряды обновляются реже биржевых цен."),
+        (
+            "Фундаментал",
+            f"🟡 Полные данные у {fundamental_ok}/9",
+            "Поэтому долгосрочные оценки менее надёжны.",
+        ),
+        ("Новости", "🟡 История накапливается", "Фон показан информационно и пока не меняет прогноз."),
+    ]
+    st.markdown("### Влияет ли это на сегодняшнее решение?")
+    for title, status, impact in cards:
+        with st.container(border=True):
+            st.markdown(f"**{title}** · {status}")
+            st.caption(impact)
+    st.success("Текущие цены всех бумаг доступны; критических блокировок сегодняшнего портфеля нет.")
+    st.info(
+        "Неполный фундаментал снижает надёжность долгосрочного вывода. Исторические ограничения "
+        "могут влиять на обучение, но не делают сегодняшнюю цену устаревшей."
+    )
+    with st.expander("Что программа использовала сегодня"):
+        st.markdown(
+            "✓ Котировки · ✓ Обороты · ✓ Ликвидность · ✓ Ширина рынка · ✓ Индексы  \n"
+            "✓ Рубль · ✓ Ставки · ✓ Сектор · ✓ Исторические аналоги · ✓ Портфель  \n"
+            "△ Фундаментал — частично · △ Новости — влияние проверяется  \n"
+            "○ Платные ряды и неподтверждённые источники — не использованы"
+        )
+    st.caption("Инженерные таблицы покрытия доступны только в расширенном режиме.")
+
+
+def render_decision_flow():
+    st.header("Как программа принимает решение")
+    st.markdown("### От данных к понятному действию")
+    steps = [
+        ("ДАННЫЕ", "Проверяются даты, полнота и совместимость snapshot."),
+        ("РЫНОК", "Определяется общий фон: спокойный, смешанный или напряжённый."),
+        ("СЕКТОР", "Бумага сравнивается с компаниями своего сектора."),
+        ("АКЦИЯ", "Оцениваются цена, динамика, обороты и устойчивость."),
+        ("СРАВНЕНИЕ", "Проверяется, выглядит ли бумага сильнее доступных альтернатив."),
+        ("АНАЛОГИ", "Изучаются похожие ситуации в прошлом без обещания повторения."),
+        ("РИСК", "Проверяются просадка, волатильность и вклад в риск."),
+        ("ПОРТФЕЛЬ", "Учитываются текущий вес и концентрация."),
+        ("ИТОГ", "Формируется действие и условия, которые способны его изменить."),
+    ]
+    for index, (title, text) in enumerate(steps):
+        with st.container(border=True):
+            st.markdown(f"**{index + 1}. {title}**")
+            st.caption(text)
+    st.info("Скрытого магического рейтинга нет: итог меняют только показанные evidence-блоки.")

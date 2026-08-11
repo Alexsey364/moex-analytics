@@ -94,14 +94,27 @@ if not summary.get("ready"):
     st.warning("База создана, но схема неполная. Выполните начальную настройку.")
 
 quality = current_quality_summary()
-top = st.columns(5)
-top[0].metric("Торговые данные", f"по {short_date(summary.get('date_to'))}")
-top[1].metric("Сегодня", short_date(quality.get("today")))
-status_icon = {"green": "🟢 актуально", "yellow": "🟡 есть предупреждения",
-               "red": "🔴 обновление требуется"}.get(quality.get("status"), "⚪ не рассчитано")
-top[2].metric("Статус", status_icon)
-top[3].metric("Критических", quality.get("critical", 0))
-top[4].metric("Предупреждений", quality.get("warnings", 0))
+status_icon = {
+    "green": "🟢 актуально",
+    "yellow": "🟡 есть предупреждения",
+    "red": "🔴 обновление требуется",
+}.get(quality.get("status"), "⚪ не рассчитано")
+header_items = (
+    ("Торговые данные", f"по {short_date(summary.get('date_to'))}"),
+    ("Сегодня", short_date(quality.get("today"))),
+    ("Статус", status_icon),
+    ("Критических", quality.get("critical", 0)),
+    ("Предупреждений", quality.get("warnings", 0)),
+)
+st.markdown(
+    '<div class="decision-grid">'
+    + "".join(
+        f'<div class="decision-step"><small>{label}</small><br><b>{value}</b></div>'
+        for label, value in header_items
+    )
+    + "</div>",
+    unsafe_allow_html=True,
+)
 st.caption(
     f"Диапазон торговой истории: {short_date(summary.get('date_from'))} — "
     f"{short_date(summary.get('date_to'))}. Технический журнал доступен в расширенном режиме."
@@ -273,17 +286,17 @@ advanced_pages = {
 basic_pages = {
     "Сегодня": human_portfolio.render_today,
     "Мой портфель": human_portfolio.render_portfolio,
-    "Куда вложить пополнение": human_portfolio.render_allocation,
-    "Акции": human_portfolio.render_stocks,
-    "Спросить про портфель": human_portfolio.render_ask,
-    "Дивиденды": human_portfolio.render_dividends,
+    "Что купить / куда вложить": human_portfolio.render_allocation,
+    "Мои акции": human_portfolio.render_stocks,
+    "Что влияет на рынок": news_intelligence.render,
+    "Похожие ситуации": market_memory.render,
     "Риски": human_portfolio.render_risks,
-    "Сценарии": human_portfolio.render_scenarios,
-    "Новости": news_intelligence.render,
-    "Исторические аналоги": market_memory.render,
+    "Дивиденды": human_portfolio.render_dividends,
     "Реальная проверка": forecast_scorecard.render_live_validation,
-    "Качество данных": historical_data.render_basic,
+    "Качество данных": human_portfolio.render_data_quality_basic,
     "Обновить данные": transparency.render_update,
+    "Как принимается решение": human_portfolio.render_decision_flow,
+    "Спросить помощника": human_portfolio.render_ask,
 }
 advanced = st.sidebar.toggle("Расширенный режим", value=False)
 if advanced:

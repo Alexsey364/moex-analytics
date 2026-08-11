@@ -5,6 +5,8 @@ import pytest
 
 from moex_analytics.dashboard.human_experience import (
     FORBIDDEN_BASIC_TERMS,
+    action_text,
+    horizon_state,
     human_status,
     percent,
     portfolio_verdict,
@@ -44,6 +46,12 @@ def test_portfolio_verdict_is_deterministic_and_conservative():
     assert portfolio_verdict(["GRAY"])[0].startswith("⚪")
 
 
+def test_central_decision_semantics_are_consistent():
+    assert action_text("do_not_increase") == "🟠 Пока не увеличивать"
+    assert horizon_state("небольшой негативный перевес") == "🟠 слабее альтернатив"
+    assert horizon_state("нейтрально") == "🟡 смешанная картина"
+
+
 def test_forecast_marker_handles_nullable_database_booleans():
     assert forecast_marker("pending", pd.NA, pd.NA).key == "insufficient"
     assert forecast_marker("matured", pd.NA, pd.NA).key == "mixed"
@@ -58,3 +66,11 @@ def test_basic_renderers_do_not_contain_known_internal_labels():
     rendered = "\n".join(path.read_text(encoding="utf-8") for path in paths)
     for term in FORBIDDEN_BASIC_TERMS:
         assert term not in rendered
+
+
+def test_basic_quality_page_hides_engineering_columns():
+    source = Path("src/moex_analytics/dashboard/pages/human_portfolio.py").read_text(encoding="utf-8")
+    quality = source.split("def render_data_quality_basic", 1)[1].split("def render_decision_flow", 1)[0]
+    for internal in ("dataset_family", "recommended_action", "Historical equity universe backfill"):
+        assert internal not in quality
+    assert "Влияет ли это на сегодняшнее решение?" in quality

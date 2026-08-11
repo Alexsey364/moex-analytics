@@ -293,10 +293,24 @@ def render_live_validation():
     columns[3].metric("Верное направление", int(row.correct))
     columns[4].metric("Ошибки", int(row.wrong))
     columns[5].metric("Нейтральные", int(row.neutral))
+    independent = _q(
+        "SELECT count(*) n FROM (SELECT DISTINCT r.secid,r.cutoff,r.horizon_sessions "
+        "FROM forecast_registry r JOIN forecast_outcomes o USING(forecast_id) "
+        "WHERE o.outcome_status='matured')"
+    )
+    independent_n = int(independent.iloc[0].n) if not independent.empty else 0
+    st.info(
+        f"{int(row.matured)} записей прогнозов = {independent_n} независимых рыночных исходов. "
+        "Несколько записей могут относиться к одной бумаге, дате и фактическому движению."
+    )
     if int(row.matured) < 50:
         st.warning(
             "⚪ Выборка пока слишком мала для вывода о качестве модели. "
             "Это первый настоящий live-экзамен; числовая вероятность не публикуется."
+        )
+        st.caption(
+            "Первый торговый день оказался слабым для сохранённых состояний модели, "
+            "но одна сессия не позволяет оценить её качество."
         )
     progress = live_progress(int(row.correct), int(row.wrong), int(row.neutral), int(row.total - row.matured))
     if progress is None:

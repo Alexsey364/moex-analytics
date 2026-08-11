@@ -50,6 +50,17 @@ STATUS_TO_TOKEN = {
     "unknown": "insufficient",
     "insufficient_data": "insufficient",
     "no_evidence": "insufficient",
+    "stress": "caution",
+    "transition": "caution",
+    "validated": "positive",
+    "validated_current": "positive",
+    "normal": "mixed",
+    "high": "caution",
+    "deep": "negative",
+    "insufficient_history": "insufficient",
+    "conditional_candidate": "neutral",
+    "unstable": "caution",
+    "rejected": "negative",
 }
 
 
@@ -111,7 +122,21 @@ def theme_css() -> str:
     @media (prefers-color-scheme: dark) { :root { --moex-positive:#57d17c;
       --moex-mixed:#f2cc60; --moex-caution:#ff9d52; --moex-negative:#ff7b72;
       --moex-neutral:#58a6ff; --moex-insufficient:#b1bac4; } }
+    .block-container { padding-top:1rem !important; max-width:1500px; }
+    h1 { font-size:2.25rem !important; line-height:1.12 !important; margin-bottom:.55rem !important; }
+    h2 { font-size:1.55rem !important; line-height:1.2 !important; margin:.7rem 0 .4rem !important; }
+    h3 { font-size:1.1rem !important; line-height:1.25 !important; }
+    p, label, [data-testid="stCaptionContainer"] { font-size:.93rem !important; }
+    [data-testid="stMetric"] { min-width:0; padding:.35rem .5rem; }
+    [data-testid="stMetricValue"] { font-size:1.45rem !important; white-space:normal !important;
+      overflow:visible !important; text-overflow:clip !important; line-height:1.15 !important; }
+    [data-testid="stMetricLabel"] { white-space:normal !important; overflow:visible !important; }
     .status-card { border:1px solid color-mix(in srgb,currentColor 25%,transparent);
-      border-radius:12px; padding:.75rem 1rem; margin:.35rem 0; }
-    @media (max-width:900px) { [data-testid="stHorizontalBlock"] { flex-wrap:wrap; } }
+      border-radius:10px; padding:.6rem .8rem; margin:.25rem 0; overflow-wrap:anywhere; }
+    .decision-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:.5rem; margin:.4rem 0; }
+    .decision-step { border-left:4px solid var(--moex-neutral); padding:.45rem .65rem;
+      border-radius:6px; background:color-mix(in srgb,currentColor 4%,transparent); }
+    @media (max-width:900px) { [data-testid="stHorizontalBlock"] { flex-wrap:wrap; }
+      h1 { font-size:1.8rem !important; } [data-testid="stMetric"] { flex:1 1 155px; } }
     </style>"""
