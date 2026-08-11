@@ -90,11 +90,15 @@ if not summary.get("ready"):
 
 top = st.columns(4)
 top[0].metric("Состояние базы", "Готова" if summary.get("ready") else "Настройка")
-top[1].metric("Последнее обновление", str(summary.get("last_load") or "—"))
+top[1].metric("Последняя запись журнала загрузок", str(summary.get("last_load") or "—"))
 top[2].metric("Проблем качества", summary.get("issues", 0))
 top[3].metric(
-    "Диапазон",
-    f"{summary.get('date_from', '—')} — {summary.get('date_to', '—')}",
+    "Торговые данные по дату",
+    str(summary.get("date_to") or "—"),
+)
+st.caption(
+    f"Диапазон торговой истории: {summary.get('date_from', '—')} — "
+    f"{summary.get('date_to', '—')}. Журнал загрузок — техническое время операции, не cutoff анализа."
 )
 
 advanced_pages = {

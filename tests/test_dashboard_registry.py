@@ -1,6 +1,8 @@
 import ast
 import importlib
 import inspect
+import subprocess
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -30,6 +32,42 @@ def test_every_registered_dashboard_renderer_exists_with_zero_argument_signature
             and parameter.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
         ]
         assert required == [], f"{module_name}.{renderer_name} requires arguments"
+
+
+def test_registry_counts_and_opportunity_renderer_survive_clean_import():
+    tree = ast.parse(Path("src/moex_analytics/dashboard/app.py").read_text(encoding="utf-8"))
+    counts = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Dict):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id in {"advanced_pages", "basic_pages"}:
+                    counts[target.id] = len(node.value.keys)
+    assert counts == {"advanced_pages": 160, "basic_pages": 23}
+    result = subprocess.run(
+        [sys.executable, "-c", "from moex_analytics.dashboard.pages import "
+         "predictive_command_center as p; assert callable(p.render_opportunity)"],
+        check=False, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_opportunity_renderer_has_graceful_empty_state(monkeypatch):
+    from moex_analytics.dashboard.pages import predictive_command_center as page
+
+    messages = []
+    monkeypatch.setattr(page, "read_connection", lambda: (_ for _ in ()).throw(RuntimeError("empty")))
+    monkeypatch.setattr(page.st, "header", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(page.st, "caption", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(page.st, "info", lambda message: messages.append(message))
+    page.render_opportunity()
+    assert messages == ["Нет полного актуального opportunity snapshot. Запустите обновление данных."]
+
+
+def test_header_distinguishes_load_log_timestamp_from_market_cutoff():
+    source = Path("src/moex_analytics/dashboard/app.py").read_text(encoding="utf-8")
+    assert "Последняя запись журнала загрузок" in source
+    assert "Торговые данные по дату" in source
+    assert "техническое время операции, не cutoff анализа" in source
 
 
 def test_stage15_pages_render_graceful_empty_state(monkeypatch):

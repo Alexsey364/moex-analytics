@@ -34,17 +34,19 @@ def load_visual_lab(con) -> dict:
         "SELECT * FROM portfolio_allocation_plans WHERE run_id=(SELECT run_id FROM "
         "cash_aware_optimizer_runs WHERE status='completed' ORDER BY finished_at DESC LIMIT 1)"
     ).df()
-    invalid = con.execute(
-        "SELECT cutoff,status FROM predictive_target_runs "
-        "WHERE status='invalid_incomplete_universe' ORDER BY finished_at DESC LIMIT 1"
-    ).fetchone()
+    try:
+        freshness = con.execute(
+            "SELECT cutoff,status FROM snapshot_freshness_runs ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+    except Exception:
+        freshness = None
     return {
         "ranking": ranking,
         "distributions": distributions,
         "opportunity": opportunity,
         "plans": plans,
         "ready": not ranking.empty,
-        "freshness_warning": invalid,
+        "freshness_warning": freshness if freshness and freshness[1] != "complete" else None,
     }
 
 
@@ -256,12 +258,40 @@ def render_main() -> None:
 def render_opportunity() -> None:
     st.header("Opportunity Map")
     st.caption("Только сохранённые Stage 56 результаты; расчёта при открытии страницы нет.")
-    with read_connection() as con:
-        lab = load_visual_lab(con)
+    try:
+        with read_connection() as con:
+            lab = load_visual_lab(con)
+            distilled = con.execute(
+                "SELECT secid,status_code,group_60,group_120,group_250,portfolio_fit,data_quality "
+                "FROM distilled_investor_views WHERE run_id=(SELECT run_id FROM "
+                "investor_decision_runs WHERE status='completed' ORDER BY created_at DESC LIMIT 1)"
+            ).df()
+    except Exception:
+        st.info("Нет полного актуального opportunity snapshot. Запустите обновление данных.")
+        return
+    if lab["freshness_warning"]:
+        st.warning("Текущий universe неполон. Старые и новые snapshots не смешиваются.")
+        return
+    if not distilled.empty:
+        lab["opportunity"] = lab["opportunity"].merge(distilled, on="secid", how="left")
+        lab["opportunity"]["visual_status"] = lab["opportunity"].status_code.fillna("GRAY")
+    else:
+        lab["opportunity"]["visual_status"] = "GRAY"
+    with st.container():
         if lab["opportunity"].empty:
-            st.info("Opportunity research ещё не рассчитан.")
+            st.info("Нет полного актуального opportunity snapshot. Запустите обновление данных.")
             return
-        st.plotly_chart(_opportunity_scatter(lab["opportunity"]), use_container_width=True)
+        selected = lab["opportunity"].loc[lab["opportunity"].horizon == 60].copy()
+        colors = {value: color_for(value) for value in selected.visual_status.unique()}
+        figure = px.scatter(
+            selected, x="downside_axis", y="opportunity_axis", text="secid",
+            size=selected.portfolio_weight.fillna(0).clip(lower=.01), color="visual_status",
+            color_discrete_map=colors,
+            hover_data=["relative_rank", "group_60", "group_120", "group_250",
+                        "expected_median", "tail_downside", "data_quality", "portfolio_fit"],
+            title="Возможность и downside: выше — интереснее, правее — больше риск",
+        ).update_traces(textposition="top center")
+        st.plotly_chart(figure, use_container_width=True)
         visible = lab["opportunity"][[
             "secid", "horizon", "quadrant", "timing_status", "evidence_quality",
             "abstain", "abstention_reason",
