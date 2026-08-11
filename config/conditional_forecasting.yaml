@@ -15,4 +15,9 @@ conditional_similarity:
     fx_commodities: 0.10
     sector: 0.10
     fundamental: 0.10
-
+conditional_weighting:
+  version: conditional-weighting-v1.1
+  similarity_power: 2.0
+  minimum_effective_sample: 4.0
+  concentrated_max_weight: 0.50
+  recency_weighting: none
