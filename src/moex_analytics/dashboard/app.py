@@ -310,6 +310,7 @@ basic_pages = {
     "Мои акции": evidence_decision.render_stocks,
     "Что влияет на рынок": news_intelligence.render,
     "Похожие ситуации в прошлом": market_memory.render,
+    "Сценарии": evidence_decision.render_scenarios,
     "Риски": evidence_decision.render_risks,
     "Дивиденды": human_portfolio.render_dividends,
     "Реальная проверка": evidence_decision.render_live,

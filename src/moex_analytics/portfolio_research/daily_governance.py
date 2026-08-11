@@ -124,6 +124,15 @@ def _finish(
     decision_outcomes = update_decision_outcomes(con)
     details["decision_outcomes_matured"] = decision_outcomes["matured_new"]
     details["decision_outcomes_live_records"] = decision_outcomes["live_records"]
+    try:
+        from moex_analytics.portfolio_scenarios import build_portfolio_scenario_tree
+
+        scenario_tree = build_portfolio_scenario_tree(con)
+        details["scenario_tree_run"] = scenario_tree["run_id"]
+        details["scenario_tree_branches"] = scenario_tree["branches"]
+    except Exception as exc:
+        details["scenario_tree_run"] = None
+        details["scenario_tree_reason"] = str(exc)
     duration = time.perf_counter() - started
     con.execute(
         "UPDATE daily_update_runs SET finished_at=current_timestamp,duration_seconds=?,sources_checked=?,"

@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from moex_analytics.dashboard.data_access import read_connection, table_exists
@@ -235,6 +236,78 @@ def render_stocks() -> None:
                     hide_index=True,
                     use_container_width=True,
                 )
+
+
+def render_scenarios() -> None:
+    st.header("Сценарии рынка и моего портфеля")
+    try:
+        with read_connection() as con:
+            run = con.execute(
+                "SELECT run_id,cutoff,episodes FROM portfolio_scenario_runs "
+                "WHERE status='completed' ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+            root = con.execute(
+                "SELECT market_regime,news_overlay_json FROM portfolio_scenario_roots WHERE run_id=?",
+                [run[0]],
+            ).fetchone()
+            branches = con.execute(
+                """SELECT branch_id,label,episodes,total_episodes,median_imoex_return,
+                median_drawdown,representative_date,historical_frequency_text
+                FROM portfolio_scenario_branches WHERE run_id=? ORDER BY episodes DESC""",
+                [run[0]],
+            ).fetchall()
+    except Exception:
+        st.info("⚪ Дерево реальных исторических сценариев ещё не рассчитано.")
+        return
+    st.caption(f"СЕГОДНЯ · {run[1]} · режим рынка: {root[0]}. Ветви — реальные эпизоды, не вероятности.")
+    columns = st.columns(len(branches))
+    for column, branch in zip(columns, branches, strict=True):
+        with column:
+            st.markdown(f"**{branch[1]}**")
+            st.write(branch[7])
+            st.write(f"Медиана IMOEX: {branch[4]:+.1%}")
+            st.write(f"Просадка: {branch[5]:.1%}")
+            st.caption(f"Реальный представитель: {branch[6]}")
+    selected_label = st.selectbox("Открыть ветвь", [branch[1] for branch in branches])
+    selected = next(branch for branch in branches if branch[1] == selected_label)
+    with read_connection() as con:
+        paths = con.execute(
+            """SELECT analog_date,relative_session,normalized_imoex
+            FROM portfolio_scenario_paths WHERE run_id=? AND branch_id=?
+            ORDER BY analog_date,relative_session""",
+            [run[0], selected[0]],
+        ).df()
+        sensitivities = con.execute(
+            """SELECT secid,episodes,median_return,median_relative_return,
+            median_drawdown,resilience FROM portfolio_scenario_sensitivities
+            WHERE run_id=? AND branch_id=? ORDER BY median_relative_return DESC""",
+            [run[0], selected[0]],
+        ).df()
+    figure = go.Figure()
+    for analog_date, group in paths.groupby("analog_date"):
+        figure.add_trace(
+            go.Scatter(
+                x=group.relative_session,
+                y=group.normalized_imoex,
+                mode="lines",
+                name=str(analog_date),
+                opacity=0.45,
+            )
+        )
+    figure.update_layout(
+        height=420,
+        template="plotly_white",
+        xaxis_title="Торговые сессии после исторического T0",
+        yaxis_title="IMOEX, T0 = 100",
+    )
+    st.plotly_chart(figure, use_container_width=True, config={"displayModeBar": False})
+    st.subheader("Как мои бумаги вели себя в этой ветви")
+    st.dataframe(sensitivities, hide_index=True, use_container_width=True)
+    stories = json.loads(root[1] or "[]")
+    if stories:
+        st.caption("Текущие новости показаны только как контекст и не меняют веса ветвей.")
+        for story in stories:
+            st.write(f"• {story['headline']}")
 
 
 def render_allocation() -> None:
