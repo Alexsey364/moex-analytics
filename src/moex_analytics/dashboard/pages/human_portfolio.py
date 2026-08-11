@@ -618,8 +618,17 @@ def render_stocks():
         st.dataframe(evidence.assign(level=evidence.status.map(rank)), use_container_width=True)
         working = evidence[evidence.status != "NO_EVIDENCE"].experiment.unique().tolist()
         st.caption("Основные работающие блоки: " + (", ".join(working) if working else "не подтверждены"))
-        st.caption("Основные ограничения: нет matured live outcomes; probability gate закрыт.")
-        st.caption("Live verification: 0 matured.")
+        live = _q(
+            "SELECT count(*) total, count(*) FILTER (WHERE o.outcome_status='matured') matured "
+            "FROM forecast_registry r LEFT JOIN forecast_outcomes o USING(forecast_id)"
+        )
+        matured = int(live.iloc[0].matured) if not live.empty else 0
+        total = int(live.iloc[0].total) if not live.empty else 0
+        st.caption(
+            "Основные ограничения: реальная проверка только началась; "
+            "публикация числовой вероятности запрещена."
+        )
+        st.caption(f"Реальная проверка: созрело {matured} из {total}; ожидают {total - matured}.")
     from moex_analytics.dashboard.pages.market_memory import render_basic_analogs
 
     render_basic_analogs(secid)

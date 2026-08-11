@@ -132,11 +132,11 @@ def trading_maturity(con, secid: str, cutoff, horizon: int):
 
 
 def direction_result(direction: str, actual_return: float, neutral_band: float = 0.01):
-    if direction == "small_positive":
+    if direction in {"small_positive", "↑"}:
         return actual_return > 0, None
-    if direction == "small_negative":
+    if direction in {"small_negative", "↓"}:
         return actual_return < 0, None
-    if direction == "neutral":
+    if direction in {"neutral", "→"}:
         return None, abs(actual_return) <= neutral_band
     return None, None
 

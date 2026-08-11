@@ -62,6 +62,12 @@ def test_horizons_do_not_emit_probabilities():
         assert "%" not in horizon_status(momentum, 0.2)[1]
 
 
+def test_horizon_status_separates_machine_state_from_human_text():
+    state, text = horizon_status(0.08, 0.2)
+    assert state == "small_positive"
+    assert text.startswith("↑")
+
+
 def test_query_router_has_examples_and_rejects_unsupported():
     assert "Что по Сберу?" in INTENTS  # noqa: RUF001
     con = duckdb.connect(":memory:")

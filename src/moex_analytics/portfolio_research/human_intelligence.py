@@ -438,15 +438,18 @@ def build_daily_report(con, analysis_cutoff: date | None = None) -> dict:
                         VERSION,
                     ],
                 )
-            for horizon, view in synthesis["horizons"].items():
+            for horizon in synthesis["horizons"]:
+                direction, view_text = horizon_status(
+                    data["momentum"][horizon], data["volatility"]
+                )
                 con.execute(
                     "INSERT INTO human_horizon_views VALUES (?,?,?,?,?,?,?,?)",
                     [
                         report_id,
                         secid,
                         horizon,
-                        view[0],
-                        view,
+                        direction,
+                        view_text,
                         json.dumps({"trailing_return": data["momentum"][horizon]}),
                         synthesis["confidence"].score,
                         VERSION,

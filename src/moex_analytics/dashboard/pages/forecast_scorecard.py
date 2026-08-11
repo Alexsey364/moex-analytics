@@ -266,12 +266,18 @@ def render_live_validation():
     totals = _q(
         "SELECT (SELECT count(*) FROM forecast_registry) total,"
         "(SELECT count(*) FROM forecast_outcomes WHERE outcome_status='matured') matured,"
-        "(SELECT count(*) FROM forecast_outcomes WHERE outcome_status='matured' "
-        "AND direction_correct) correct,"
-        "(SELECT count(*) FROM forecast_outcomes WHERE outcome_status='matured' "
-        "AND direction_correct=false) wrong,"
-        "(SELECT count(*) FROM forecast_outcomes WHERE outcome_status='matured' "
-        "AND neutral_hit) neutral"
+        "(SELECT count(*) FROM forecast_registry r JOIN forecast_outcomes o USING(forecast_id) "
+        "WHERE o.outcome_status='matured' AND ((r.qualitative_direction IN ('↑','small_positive') "
+        "AND o.actual_return>0) OR (r.qualitative_direction IN ('↓','small_negative') "
+        "AND o.actual_return<0))) correct,"
+        "(SELECT count(*) FROM forecast_registry r JOIN forecast_outcomes o USING(forecast_id) "
+        "WHERE o.outcome_status='matured' AND (((r.qualitative_direction IN ('↑','small_positive') "
+        "AND o.actual_return<=0) OR (r.qualitative_direction IN ('↓','small_negative') "
+        "AND o.actual_return>=0)) OR (r.qualitative_direction IN ('→','neutral') "
+        "AND abs(o.actual_return)>0.01))) wrong,"
+        "(SELECT count(*) FROM forecast_registry r JOIN forecast_outcomes o USING(forecast_id) "
+        "WHERE o.outcome_status='matured' AND r.qualitative_direction IN ('→','neutral') "
+        "AND abs(o.actual_return)<=0.01) neutral"
     )
     if totals.empty:
         st.info("Live validation ещё не рассчитан.")
@@ -284,8 +290,11 @@ def render_live_validation():
     columns[3].metric("Верное направление", int(row.correct))
     columns[4].metric("Ошибки", int(row.wrong))
     columns[5].metric("Нейтральные", int(row.neutral))
-    if int(row.matured) < 10:
-        st.warning("Sample status: insufficient. Сильные live-выводы запрещены.")
+    if int(row.matured) < 50:
+        st.warning(
+            "⚪ Выборка пока слишком мала для вывода о качестве модели. "
+            "Это первый настоящий live-экзамен; числовая вероятность не публикуется."
+        )
     progress = live_progress(int(row.correct), int(row.wrong), int(row.neutral), int(row.total - row.matured))
     if progress is None:
         st.info(

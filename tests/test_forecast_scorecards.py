@@ -17,6 +17,19 @@ from moex_analytics.portfolio_research.forecast_scorecards import (
 from moex_analytics.portfolio_research.human_intelligence import DDL as HUMAN_DDL
 
 
+@pytest.mark.parametrize(
+    ("direction", "actual", "expected"),
+    [
+        ("↑", 0.02, (True, None)),
+        ("↓", 0.02, (False, None)),
+        ("→", 0.005, (None, True)),
+        ("→", 0.02, (None, False)),
+    ],
+)
+def test_direction_result_accepts_persisted_display_symbols(direction, actual, expected):
+    assert direction_result(direction, actual) == expected
+
+
 def _con(with_future=True):
     con = duckdb.connect(":memory:")
     con.execute(HUMAN_DDL)

@@ -201,10 +201,14 @@ def build_live_scorecards(con) -> dict:
     for secid, horizon, version in groups:
         rows = con.execute(
             "SELECT r.cutoff,r.forecast_id,o.actual_return,r.median_return,"
-            "CASE WHEN r.qualitative_direction='small_positive' THEN TRUE "
-            "WHEN r.qualitative_direction='small_negative' THEN FALSE END,o.direction_correct,"
+            "CASE WHEN r.qualitative_direction IN ('small_positive','↑') THEN TRUE "
+            "WHEN r.qualitative_direction IN ('small_negative','↓') THEN FALSE END,"
+            "CASE WHEN r.qualitative_direction IN ('small_positive','↑') THEN o.actual_return>0 "
+            "WHEN r.qualitative_direction IN ('small_negative','↓') THEN o.actual_return<0 END,"
             "o.max_favorable_excursion,o.max_adverse_excursion,"
-            "o.inside_50_interval,o.inside_80_interval,o.inside_90_interval,o.neutral_hit "
+            "o.inside_50_interval,o.inside_80_interval,o.inside_90_interval,"
+            "CASE WHEN r.qualitative_direction IN ('neutral','→') "
+            "THEN abs(o.actual_return)<=0.01 END "
             "FROM forecast_registry r JOIN forecast_outcomes o USING(forecast_id) "
             "WHERE r.secid=? AND r.horizon_sessions=? AND r.model_version=? "
             "AND o.outcome_status='matured' ORDER BY r.cutoff", [secid, horizon, version]
@@ -407,10 +411,16 @@ def build_error_diagnostics(con) -> dict:
     inserted = 0
     for row in rows:
         fid, secid, horizon, prediction, actual, error, correct, neutral, regime, features, limits = row
+        is_neutral = prediction in {"neutral", "→"}
+        neutral = abs(float(actual)) <= 0.01 if is_neutral else None
+        if prediction in {"small_positive", "↑"}:
+            correct = float(actual) > 0
+        elif prediction in {"small_negative", "↓"}:
+            correct = float(actual) < 0
         result = "neutral_hit" if neutral else "correct" if correct else "wrong"
         before = con.execute("SELECT count(*) FROM live_error_diagnostics WHERE forecast_id=?", [fid]).fetchone()[0]
         con.execute(
-            "INSERT OR IGNORE INTO live_error_diagnostics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,current_timestamp)",
+            "INSERT OR REPLACE INTO live_error_diagnostics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,current_timestamp)",
             [fid, secid, horizon, prediction, actual, error, result, regime,
              "competitor_same_date_unavailable", features, limits, correct is False,
              "diagnostic association only; no causal explanation"],
