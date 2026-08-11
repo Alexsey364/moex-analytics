@@ -42,6 +42,16 @@ def _load_snapshot(instrument: str, horizon: int, mode: str) -> dict[str, Any] |
             AND instrument=? AND horizon=? AND comparison_mode=?""",
             [instrument, horizon, mode],
         ).fetchone()
+        try:
+            context = con.execute(
+                """SELECT d.snapshot_id,c.current_cutoff,c.analog_source_cutoff,c.current_path_json,
+                c.status,c.reason FROM daily_intelligence_snapshots d JOIN daily_analog_contexts c
+                USING(snapshot_id) WHERE c.instrument=? AND c.comparison_mode=?
+                ORDER BY d.created_at DESC LIMIT 1""",
+                [instrument, mode],
+            ).fetchone()
+        except Exception:
+            context = None
     if not row:
         return None
     keys = (
@@ -62,6 +72,13 @@ def _load_snapshot(instrument: str, horizon: int, mode: str) -> dict[str, Any] |
     result = dict(zip(keys, row, strict=True))
     for key in ("current", "analogs", "bands", "cards", "summary", "why", "scenarios"):
         result[key] = json.loads(result[key] or "[]")
+    if context:
+        result["daily_snapshot_id"] = context[0]
+        result["cutoff"] = context[1]
+        result["analog_source_cutoff"] = context[2]
+        result["current"] = json.loads(context[3] or "[]")
+        result["context_status"] = context[4]
+        result["context_reason"] = context[5]
     return result
 
 
@@ -255,6 +272,12 @@ def render() -> None:
         f"Точка сравнения T0: {snapshot['cutoff']}. Последующие данные текущей ситуации "
         "не участвуют в выборе аналогов."
     )
+    if snapshot.get("analog_source_cutoff") != snapshot["cutoff"]:
+        st.warning(
+            "Текущая траектория обновлена по единому daily snapshot, но immutable набор "
+            f"исторических совпадений рассчитан по состоянию на {snapshot['analog_source_cutoff']}. "
+            "Он показан как historical audit и не выдаётся за полностью текущий сигнал."
+        )
     if snapshot["status"] != "ready":
         st.info("⚪ Слишком мало действительно похожих независимых периодов, чтобы делать сильный вывод.")
         with st.expander("Технические детали"):

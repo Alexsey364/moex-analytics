@@ -73,9 +73,12 @@ def _portfolio_prices_behind(con, market_latest):
         secids = [row["secid"] for row in load_positions()]
         if not secids:
             return False
-        portfolio_latest = con.execute("SELECT min(last_date) FROM (SELECT canonical_secid,"
+        portfolio_latest = con.execute(
+            "SELECT min(last_date) FROM (SELECT canonical_secid,"
             "max(trade_date) last_date FROM canonical_daily_prices WHERE canonical_secid IN "
-            "(SELECT unnest(?)) GROUP BY canonical_secid)", [secids]).fetchone()[0]
+            "(SELECT unnest(?)) GROUP BY canonical_secid)",
+            [secids],
+        ).fetchone()[0]
         return portfolio_latest is None or portfolio_latest < market_latest
     except Exception:
         return False
@@ -101,6 +104,12 @@ def _finish(
     from moex_analytics.current_quality.core import audit_current_quality
 
     audit_current_quality(con, session_closed=False)
+    from moex_analytics.daily_intelligence import build_daily_snapshot
+
+    unified_snapshot = build_daily_snapshot(con, source_update_run=run_id)
+    details["daily_snapshot_id"] = unified_snapshot.get("snapshot_id")
+    details["daily_snapshot_cutoff"] = str(unified_snapshot.get("cutoff") or "")
+    details["daily_snapshot_compatibility"] = unified_snapshot.get("compatibility")
     duration = time.perf_counter() - started
     con.execute(
         "UPDATE daily_update_runs SET finished_at=current_timestamp,duration_seconds=?,sources_checked=?,"
@@ -191,39 +200,55 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
     for number, dataset in enumerate(datasets, 1):
         if update_monitor.cancel_requested():
             update_monitor.clear_cancel()
-            return _finish(con, run_id, started, number - 1, total_requests, total_rows, errors,
-                new_forecasts, matured, "cancelled", total_rows == 0,
-                {"steps": results, "resume": "incremental_next_run"})
+            return _finish(
+                con,
+                run_id,
+                started,
+                number - 1,
+                total_requests,
+                total_rows,
+                errors,
+                new_forecasts,
+                matured,
+                "cancelled",
+                total_rows == 0,
+                {"steps": results, "resume": "incremental_next_run"},
+            )
         began, requests, rows, status, error = time.perf_counter(), 0, 0, "smart_skip", None
         stage_meta = dict((item[0], item[1:]) for item in update_monitor.STAGES)[dataset]
-        update_monitor.progress(monitor_state, dataset=dataset, stage=stage_meta[0],
-                                source=stage_meta[1], status="running")
+        update_monitor.progress(
+            monitor_state, dataset=dataset, stage=stage_meta[0], source=stage_meta[1], status="running"
+        )
         try:
             if dataset == fail_source:
                 raise RuntimeError(f"simulated {dataset} source failure")
             if dataset == "prices":
-                if (latest is None or (now.date() - latest).days > 3
-                        or _portfolio_prices_behind(con, latest)):
+                if latest is None or (now.date() - latest).days > 3 or _portfolio_prices_behind(con, latest):
                     from moex_analytics.moex_client import MoexClient
 
                     from .core import build_portfolio_total_returns, download_portfolio_history
 
                     before = con.execute("SELECT count(*) FROM canonical_daily_prices").fetchone()[0]
+
                     def request_progress(*, dataset_name=dataset, **info):
                         monitor_state["retries"] += int(info["status"] == "retrying")
-                        update_monitor.progress(monitor_state, dataset=dataset_name,
+                        update_monitor.progress(
+                            monitor_state,
+                            dataset=dataset_name,
                             stage=f"MOEX request: {info['path'].split('?')[0]}",
                             source="MOEX ISS",
                             status="retrying" if info["status"] == "retrying" else "running",
                             requests=int(info["status"] == "completed"),
-                            duration=info["duration"])
+                            duration=info["duration"],
+                        )
 
                     client = MoexClient(progress_callback=request_progress)
                     from .portfolio_editor import load_positions
 
                     current_secids = [row["secid"] for row in load_positions()]
-                    download_portfolio_history(con, client=client, incremental_only=True,
-                                               current_secids=current_secids)
+                    download_portfolio_history(
+                        con, client=client, incremental_only=True, current_secids=current_secids
+                    )
                     build_portfolio_total_returns(con)
                     after = con.execute("SELECT count(*) FROM canonical_daily_prices").fetchone()[0]
                     rows, requests = after - before, client.request_count
@@ -272,9 +297,17 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
             status = "failed_using_previous_snapshot"
             error = f"{type(exc).__name__}: {exc}"
         duration = time.perf_counter() - began
-        update_monitor.progress(monitor_state, dataset=dataset, stage=stage_meta[0],
-            source=stage_meta[1], status=status, requests=requests, rows=rows,
-            error=error, duration=duration)
+        update_monitor.progress(
+            monitor_state,
+            dataset=dataset,
+            stage=stage_meta[0],
+            source=stage_meta[1],
+            status=status,
+            requests=requests,
+            rows=rows,
+            error=error,
+            duration=duration,
+        )
         con.execute(
             "INSERT INTO daily_update_requests VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [

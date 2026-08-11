@@ -23,6 +23,7 @@ if get_script_run_ctx() is None:
     )
     raise SystemExit
 
+from moex_analytics.daily_intelligence import latest_daily_snapshot
 from moex_analytics.dashboard.data_access import (
     DatabaseUnavailable,
     current_quality_summary,
@@ -96,13 +97,21 @@ if not summary.get("ready"):
     st.warning("База создана, но схема неполная. Выполните начальную настройку.")
 
 quality = current_quality_summary()
+try:
+    from moex_analytics.dashboard.data_access import read_connection
+
+    with read_connection() as snapshot_connection:
+        unified_snapshot = latest_daily_snapshot(snapshot_connection)
+except Exception:
+    unified_snapshot = {"latest": None}
+unified_cutoff = unified_snapshot.get("cutoff") or summary.get("date_to")
 status_icon = {
     "green": "🟢 актуально",
     "yellow": "🟡 есть предупреждения",
     "red": "🔴 обновление требуется",
 }.get(quality.get("status"), "⚪ не рассчитано")
 header_items = (
-    ("Торговые данные", f"по {short_date(summary.get('date_to'))}"),
+    ("Торговые данные", f"по {short_date(unified_cutoff)}"),
     ("Сегодня", short_date(quality.get("today"))),
     ("Статус", status_icon),
     ("Критических", quality.get("critical", 0)),
@@ -118,8 +127,15 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.caption(
+    f"Анализ рынка и портфеля по состоянию на {short_date(unified_cutoff)}. "
     f"Диапазон торговой истории: {short_date(summary.get('date_from'))} — "
-    f"{short_date(summary.get('date_to'))}. Технический журнал доступен в расширенном режиме."
+    f"{short_date(summary.get('date_to'))}. "
+    + (
+        f"Единый snapshot: {unified_snapshot.get('snapshot_id')} · {unified_snapshot.get('compatibility')}. "
+        if unified_snapshot.get("snapshot_id")
+        else "Единый daily snapshot ещё не создан. "
+    )
+    + "Технический журнал доступен в расширенном режиме."
 )
 
 advanced_pages = {
