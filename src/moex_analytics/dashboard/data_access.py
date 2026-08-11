@@ -60,6 +60,24 @@ def database_summary(path: Path | None = None) -> dict:
 
 
 @st.cache_data(ttl=60, show_spinner=False)
+def current_quality_summary(path: Path | None = None) -> dict:
+    with read_connection(path) as con:
+        if not table_exists(con, "current_quality_runs"):
+            return {"status": "unavailable", "critical": 0, "warnings": 0}
+        row = con.execute("SELECT as_of,expected_market_date,status,critical,warnings FROM "
+                          "current_quality_runs ORDER BY created_at DESC LIMIT 1").fetchone()
+        fresh = con.execute("SELECT count(*) FILTER(WHERE status='fresh'),count(*) FROM "
+                            "dataset_freshness_current WHERE run_id=(SELECT run_id FROM "
+                            "current_quality_runs ORDER BY created_at DESC LIMIT 1)").fetchone()
+        portfolio = con.execute("SELECT count(*) FILTER(WHERE price_data='fresh'),count(*) FROM "
+                                "portfolio_quality_current WHERE run_id=(SELECT run_id FROM "
+                                "current_quality_runs ORDER BY created_at DESC LIMIT 1)").fetchone()
+        return {"today": row[0], "market_cutoff": row[1], "status": row[2], "critical": row[3],
+                "warnings": row[4], "fresh_families": fresh[0], "families": fresh[1],
+                "fresh_portfolio": portfolio[0], "portfolio": portfolio[1]}
+
+
+@st.cache_data(ttl=60, show_spinner=False)
 def instrument_summary(path: Path | None = None) -> pd.DataFrame:
     with read_connection(path) as con:
         if not table_exists(con, "canonical_daily_prices"):

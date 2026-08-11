@@ -60,6 +60,27 @@ def _latest(con):
         return None
 
 
+def _portfolio_prices_behind(con, market_latest):
+    """Detect the global-cutoff trap where only non-portfolio rows are current."""
+    if market_latest is None:
+        return True
+    try:
+        columns = {row[0] for row in con.execute("DESCRIBE canonical_daily_prices").fetchall()}
+        if "canonical_secid" not in columns:
+            return False
+        from .portfolio_editor import load_positions
+
+        secids = [row["secid"] for row in load_positions()]
+        if not secids:
+            return False
+        portfolio_latest = con.execute("SELECT min(last_date) FROM (SELECT canonical_secid,"
+            "max(trade_date) last_date FROM canonical_daily_prices WHERE canonical_secid IN "
+            "(SELECT unnest(?)) GROUP BY canonical_secid)", [secids]).fetchone()[0]
+        return portfolio_latest is None or portfolio_latest < market_latest
+    except Exception:
+        return False
+
+
 def _source(dataset):
     return {
         "prices": "MOEX ISS",
@@ -77,6 +98,9 @@ def _source(dataset):
 def _finish(
     con, run_id, started, sources, requests, rows, errors, forecasts, matured, status, no_change, details
 ):
+    from moex_analytics.current_quality.core import audit_current_quality
+
+    audit_current_quality(con, session_closed=False)
     duration = time.perf_counter() - started
     con.execute(
         "UPDATE daily_update_runs SET finished_at=current_timestamp,duration_seconds=?,sources_checked=?,"
@@ -178,7 +202,8 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
             if dataset == fail_source:
                 raise RuntimeError(f"simulated {dataset} source failure")
             if dataset == "prices":
-                if latest is None or (now.date() - latest).days > 3:
+                if (latest is None or (now.date() - latest).days > 3
+                        or _portfolio_prices_behind(con, latest)):
                     from moex_analytics.moex_client import MoexClient
 
                     from .core import build_portfolio_total_returns, download_portfolio_history

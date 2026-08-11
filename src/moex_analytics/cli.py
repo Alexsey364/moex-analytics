@@ -574,6 +574,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("news-reaction-status")
     sub.add_parser("run-news-conditioned-research")
     sub.add_parser("news-research-status")
+    sub.add_parser("audit-current-data-quality")
+    sub.add_parser("current-data-quality-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -2035,6 +2037,15 @@ def main() -> None:
             action = (news_research.run_news_research
                       if args.command == "run-news-conditioned-research"
                       else news_research.research_status)
+            print(action(con))
+    elif args.command in {"audit-current-data-quality", "current-data-quality-status"}:
+        from .current_quality import core as current_quality
+
+        init_database()
+        with connection() as con:
+            action = (current_quality.audit_current_quality
+                      if args.command == "audit-current-data-quality"
+                      else current_quality.quality_summary)
             print(action(con))
     elif args.command == "dashboard":
         from .dashboard.launcher import mark_process

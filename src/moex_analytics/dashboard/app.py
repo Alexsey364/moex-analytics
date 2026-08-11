@@ -23,7 +23,11 @@ if get_script_run_ctx() is None:
     )
     raise SystemExit
 
-from moex_analytics.dashboard.data_access import DatabaseUnavailable, database_summary
+from moex_analytics.dashboard.data_access import (
+    DatabaseUnavailable,
+    current_quality_summary,
+    database_summary,
+)
 from moex_analytics.dashboard.launcher import mark_current_process
 from moex_analytics.dashboard.navigation import group_advanced_pages, navigation_pages
 from moex_analytics.dashboard.pages import (
@@ -89,17 +93,18 @@ except DatabaseUnavailable as exc:
 if not summary.get("ready"):
     st.warning("База создана, но схема неполная. Выполните начальную настройку.")
 
-top = st.columns(4)
-top[0].metric("Состояние базы", "Готова" if summary.get("ready") else "Настройка")
-top[1].metric("Последняя запись журнала загрузок", str(summary.get("last_load") or "—"))
-top[2].metric("Проблем качества", summary.get("issues", 0))
-top[3].metric(
-    "Торговые данные по дату",
-    str(summary.get("date_to") or "—"),
-)
+quality = current_quality_summary()
+top = st.columns(5)
+top[0].metric("Торговые данные", f"по {summary.get('date_to') or '—'}")
+top[1].metric("Сегодня", str(quality.get("today") or "—"))
+status_icon = {"green": "🟢 актуально", "yellow": "🟡 есть предупреждения",
+               "red": "🔴 обновление требуется"}.get(quality.get("status"), "⚪ не рассчитано")
+top[2].metric("Статус", status_icon)
+top[3].metric("Критических", quality.get("critical", 0))
+top[4].metric("Предупреждений", quality.get("warnings", 0))
 st.caption(
     f"Диапазон торговой истории: {summary.get('date_from', '—')} — "
-    f"{summary.get('date_to', '—')}. Журнал загрузок — техническое время операции, не cutoff анализа."
+    f"{summary.get('date_to', '—')}. Технический журнал загрузок доступен в истории обновлений."
 )
 
 advanced_pages = {

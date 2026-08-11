@@ -63,11 +63,12 @@ def test_opportunity_renderer_has_graceful_empty_state(monkeypatch):
     assert messages == ["Нет полного актуального opportunity snapshot. Запустите обновление данных."]
 
 
-def test_header_distinguishes_load_log_timestamp_from_market_cutoff():
+def test_header_prioritizes_market_cutoff_and_moves_load_log_to_history():
     source = Path("src/moex_analytics/dashboard/app.py").read_text(encoding="utf-8")
-    assert "Последняя запись журнала загрузок" in source
-    assert "Торговые данные по дату" in source
-    assert "техническое время операции, не cutoff анализа" in source
+    assert "Последняя запись журнала загрузок" not in source
+    assert "Торговые данные" in source
+    assert "Технический журнал загрузок доступен в истории обновлений" in source
+    assert "Проблем качества" not in source
 
 
 def test_stage15_pages_render_graceful_empty_state(monkeypatch):

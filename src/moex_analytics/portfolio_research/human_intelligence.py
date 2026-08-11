@@ -530,6 +530,24 @@ INTENTS = {
 }
 
 
+def compatible_opposing_evidence(con, evidence: list[str]) -> list[str]:
+    """Exclude legacy warnings unless the latest current snapshot proves their impact."""
+    legacy = {"Incomplete normalized history; range is not production-ready",
+              "Нет issuer-specific validated связи"}
+    if not any(item in legacy for item in evidence):
+        return evidence
+    try:
+        rows = con.execute("SELECT dataset,instrument,date_from,date_to,reason FROM "
+            "current_quality_issues WHERE run_id=(SELECT run_id FROM current_quality_runs "
+            "ORDER BY created_at DESC LIMIT 1) AND affects_current_snapshot AND "
+            "dataset IN ('fundamentals','rates')").fetchall()
+    except Exception:
+        rows = []
+    current = [f"Блок {dataset} для {instrument}: {reason}; период {start or '—'} — {end or '—'}"
+               for dataset, instrument, start, end, reason in rows]
+    return [item for item in evidence if item not in legacy] + current
+
+
 def answer_question(con, question: str) -> dict:
     """Route a supported question to stored results; never generates facts."""
     intent = INTENTS.get(question.strip())
@@ -613,7 +631,10 @@ def answer_question(con, question: str) -> dict:
             else "Для этого вывода пока недостаточно данных"
         )
     evidence_for = [x for r in selected for x in _json(r[7], [])][:5]
-    evidence_against = [x for r in selected for x in _json(r[8], [])][:5]
+    evidence_against = [x for r in selected for x in _json(r[8], [])]
+    # Legacy research limitations remain auditable, but are not current
+    # opposing evidence unless a compatible current-quality snapshot proves impact.
+    evidence_against = compatible_opposing_evidence(con, evidence_against)[:5]
     confidence = selected[0][6] if selected else "низкая"
     return {
         "conclusion": conclusion,

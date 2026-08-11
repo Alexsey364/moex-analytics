@@ -17,6 +17,20 @@ def render_data() -> None:
     st.caption("Что программа действительно хранит, когда проверяла и насколько это свежее.")
     with connection(read_only=True) as con:
         inventory = data_inventory(con, database_path(), save=False)
+        try:
+            run_id = con.execute("SELECT run_id FROM current_quality_runs ORDER BY created_at DESC "
+                                 "LIMIT 1").fetchone()[0]
+            current_freshness = con.execute("SELECT dataset_family,latest_data_date,"
+                "expected_latest_date,status,reason FROM dataset_freshness_current WHERE run_id=? "
+                "ORDER BY dataset_family", [run_id]).df()
+            portfolio_quality = con.execute("SELECT secid,price_data,market_context,ranking,"
+                "fundamentals,corporate_actions,overall,reason FROM portfolio_quality_current "
+                "WHERE run_id=? ORDER BY secid", [run_id]).df()
+            quality_counts = con.execute("SELECT status,critical,warnings FROM current_quality_runs "
+                                         "WHERE run_id=?", [run_id]).fetchone()
+        except Exception:
+            current_freshness = portfolio_quality = pd.DataFrame()
+            quality_counts = ("unavailable", 0, 0)
     totals = inventory["totals"]
     cards = st.columns(3)
     cards[0].metric("Каталог", f"{totals['catalog_securities']:,} бумаг".replace(",", " "))
@@ -45,8 +59,15 @@ def render_data() -> None:
         )
     size = inventory["storage"].get("duckdb_bytes")
     st.metric("Размер DuckDB", f"{size / 1024**3:.2f} GB" if size else "не рассчитан")
-    st.subheader("Свежесть наборов")
-    st.dataframe(pd.DataFrame(inventory["freshness"]), use_container_width=True, hide_index=True)
+    st.subheader("Качество текущего анализа")
+    st.write(f"Статус: {quality_counts[0]} · критических: {quality_counts[1]} · "
+             f"предупреждений: {quality_counts[2]}")
+    st.subheader("Свежесть по семействам данных")
+    st.dataframe(current_freshness, use_container_width=True, hide_index=True)
+    st.subheader("Мои 9 бумаг")
+    st.dataframe(portfolio_quality, use_container_width=True, hide_index=True)
+    with st.expander("Историческая техническая свежесть (Advanced audit)"):
+        st.dataframe(pd.DataFrame(inventory["freshness"]), use_container_width=True, hide_index=True)
     with st.expander("Полный inventory"):
         st.json(totals)
 
