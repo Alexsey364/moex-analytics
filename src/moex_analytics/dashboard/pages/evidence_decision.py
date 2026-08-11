@@ -69,6 +69,14 @@ def load_payload() -> dict[str, Any]:
             ).fetchall()
         except Exception:
             changes = []
+        try:
+            decision_outcomes = con.execute(
+                """SELECT source_type,decision_type,horizon,observations,median_return,
+                median_drawdown,objective_metric,sample_status FROM decision_outcome_scorecards
+                ORDER BY source_type,decision_type,horizon"""
+            ).df()
+        except Exception:
+            decision_outcomes = pd.DataFrame()
         return {
             "status": "ready",
             "review_id": review[0],
@@ -95,6 +103,7 @@ def load_payload() -> dict[str, Any]:
                 }
                 for row in changes
             ],
+            "decision_outcomes": decision_outcomes,
         }
 
 
@@ -160,6 +169,16 @@ def render_today() -> None:
             st.write(f"{icons.get(row['state'], '→')} **{row['secid']}** — " + "; ".join(row["reasons"]))
     else:
         st.caption("→ Материальных изменений относительно прошлого торгового snapshot нет.")
+    with st.expander("Как работали похожие решения в прошлом"):
+        outcomes = payload.get("decision_outcomes", pd.DataFrame())
+        if outcomes.empty:
+            st.caption("Созревших outcomes пока нет. Live и research replay не смешиваются.")
+        else:
+            st.dataframe(outcomes, hide_index=True, use_container_width=True)
+            st.caption(
+                "historical_rule_replay — исследование правил; live_daily_snapshot — только реально "
+                "сохранённые будущие verdicts. HOLD не оценивается как directional call."
+            )
     st.dataframe(_table(payload), hide_index=True, use_container_width=True)
     st.caption(f"Единый snapshot: {payload['cutoff']} · {payload['consistency_hash'][:12]}")
     st.caption("Research evidence не является числовой вероятностью или торговой рекомендацией.")

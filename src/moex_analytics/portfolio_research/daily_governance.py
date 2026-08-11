@@ -119,6 +119,11 @@ def _finish(
     except ValueError as exc:
         details["decision_memory"] = "not_captured"
         details["decision_memory_reason"] = str(exc)
+    from moex_analytics.decision_outcomes import update_decision_outcomes
+
+    decision_outcomes = update_decision_outcomes(con)
+    details["decision_outcomes_matured"] = decision_outcomes["matured_new"]
+    details["decision_outcomes_live_records"] = decision_outcomes["live_records"]
     duration = time.perf_counter() - started
     con.execute(
         "UPDATE daily_update_runs SET finished_at=current_timestamp,duration_seconds=?,sources_checked=?,"
