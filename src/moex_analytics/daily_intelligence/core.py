@@ -7,6 +7,8 @@ import json
 from datetime import UTC, date, datetime
 from typing import Any
 
+import duckdb
+
 from moex_analytics.conditioned_stock_forecasting.core import SECIDS
 from moex_analytics.visual_memory.core import MODES, _current_path, _price_map
 
@@ -223,11 +225,15 @@ def build_daily_snapshot(con: Any, *, source_update_run: str | None = None) -> d
 
 
 def latest_daily_snapshot(con: Any) -> dict[str, Any]:
-    ensure_schema(con)
-    row = con.execute(
-        "SELECT snapshot_id,cutoff,compatibility,fast_current,fast_total,created_at "
-        "FROM daily_intelligence_snapshots ORDER BY created_at DESC LIMIT 1"
-    ).fetchone()
+    # This reader is used by the dashboard through a read-only connection.
+    # Schema creation belongs to the build/update path, never to presentation.
+    try:
+        row = con.execute(
+            "SELECT snapshot_id,cutoff,compatibility,fast_current,fast_total,created_at "
+            "FROM daily_intelligence_snapshots ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+    except duckdb.CatalogException:
+        return {"latest": None}
     if not row:
         return {"latest": None}
     components = con.execute(

@@ -43,15 +43,33 @@ def test_weekend_quick_no_change_same_cutoff_and_request_log():
     assert con.execute("SELECT status FROM daily_update_requests WHERE dataset='prices'").fetchone()[0] == (
         "no_new_logical_cutoff"
     )
+    assert result["pipeline_order"] == [
+        "prices",
+        "market_context",
+        "news",
+        "market_state",
+        "sector",
+        "ranking",
+        "current_analogs",
+        "portfolio_verdict",
+        "live_maturity",
+        "unified_snapshot",
+        "decision_changes",
+        "scenario_tree",
+        "daily_briefing",
+    ]
+    assert result["daily_snapshot_id"]
+    assert result["decision_memory"] == "not_captured"
 
 
 def test_failed_source_tolerance_uses_previous_snapshot():
     con = _con()
     result = run_daily_update(con, fail_source="fundamentals", now=datetime(2026, 8, 8, 12))
     assert result["errors"] == 1 and result["status"] == "completed_with_warnings"
-    assert "simulated" in con.execute(
-        "SELECT error FROM daily_update_requests WHERE dataset='fundamentals'"
-    ).fetchone()[0]
+    assert (
+        "simulated"
+        in con.execute("SELECT error FROM daily_update_requests WHERE dataset='fundamentals'").fetchone()[0]
+    )
 
 
 def test_quick_deep_and_retrain_are_separate():
@@ -66,14 +84,23 @@ def test_quick_deep_and_retrain_are_separate():
 def test_model_freeze_challenger_shadow_and_promotion_blocked():
     con = _con()
     model = register_frozen_model(
-        con, family="direction", version="v1", feature_version="f1",
+        con,
+        family="direction",
+        version="v1",
+        feature_version="f1",
         ranges={"training": "a", "validation": "b", "pseudo_oos": "c"},
-        config_hash="h", code_commit="abc",
+        config_hash="h",
+        code_commit="abc",
     )
     challenger = register_challenger(con, "direction", "v2")
     recommendation = promotion_recommendation(
-        matured=10, stable_by_regime=True, beats_baseline=True, beats_production=True,
-        calibrated=True, leakage_free=True, structural_break=False,
+        matured=10,
+        stable_by_regime=True,
+        beats_baseline=True,
+        beats_production=True,
+        calibrated=True,
+        leakage_free=True,
+        structural_break=False,
     )
     assert model["frozen"] and challenger["status"] == "shadow"
     assert not recommendation["promote_candidate"] and not recommendation["automatic_promotion"]
@@ -83,14 +110,19 @@ def test_model_freeze_challenger_shadow_and_promotion_blocked():
 def test_data_drift_concept_drift_and_degradation_are_distinct():
     reference = np.linspace(0, 1, 100)
     psi, status = population_stability_index(reference, reference + 10)
-    assert psi > .25 and status == "significant_drift"
-    assert concept_drift_status(.1, -.1) == "significant_drift"
-    assert degradation_status([False] * 20, .6) == "model_degradation_warning"
+    assert psi > 0.25 and status == "significant_drift"
+    assert concept_drift_status(0.1, -0.1) == "significant_drift"
+    assert degradation_status([False] * 20, 0.6) == "model_degradation_warning"
 
 
 def test_retrain_is_suggestion_not_automatic_action():
-    result = retrain_suggestion(new_matured=5, data_drift="significant_drift",
-        concept_drift="stable", degradation="stable", structural_regime=False)
+    result = retrain_suggestion(
+        new_matured=5,
+        data_drift="significant_drift",
+        concept_drift="stable",
+        degradation="stable",
+        structural_regime=False,
+    )
     assert result["suggest_research_retrain"]
     assert not result["automatic_retrain"]
 

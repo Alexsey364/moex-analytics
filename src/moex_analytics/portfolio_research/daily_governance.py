@@ -101,6 +101,19 @@ def _source(dataset):
 def _finish(
     con, run_id, started, sources, requests, rows, errors, forecasts, matured, status, no_change, details
 ):
+    monitor_state = update_monitor.load()
+
+    def derived_progress(dataset, status, source="local immutable evidence"):
+        if monitor_state.get("run_id") == run_id:
+            stage = dict((item[0], item[1:]) for item in update_monitor.STAGES)[dataset]
+            update_monitor.progress(
+                monitor_state,
+                dataset=dataset,
+                stage=stage[0],
+                source=source,
+                status=status,
+            )
+
     from moex_analytics.current_quality.core import audit_current_quality
 
     audit_current_quality(con, session_closed=False)
@@ -110,15 +123,18 @@ def _finish(
     details["daily_snapshot_id"] = unified_snapshot.get("snapshot_id")
     details["daily_snapshot_cutoff"] = str(unified_snapshot.get("cutoff") or "")
     details["daily_snapshot_compatibility"] = unified_snapshot.get("compatibility")
+    derived_progress("unified_snapshot", unified_snapshot.get("compatibility", "completed"))
     try:
         from moex_analytics.decision_memory import capture_decision_snapshot
 
         decision_memory = capture_decision_snapshot(con, unified_snapshot.get("snapshot_id"))
         details["decision_memory"] = decision_memory.get("status")
         details["decision_material_changes"] = decision_memory.get("material_changes", 0)
+        derived_progress("decision_changes", decision_memory.get("status", "completed"))
     except ValueError as exc:
         details["decision_memory"] = "not_captured"
         details["decision_memory_reason"] = str(exc)
+        derived_progress("decision_changes", "not_captured")
     from moex_analytics.decision_outcomes import update_decision_outcomes
 
     decision_outcomes = update_decision_outcomes(con)
@@ -130,9 +146,22 @@ def _finish(
         scenario_tree = build_portfolio_scenario_tree(con)
         details["scenario_tree_run"] = scenario_tree["run_id"]
         details["scenario_tree_branches"] = scenario_tree["branches"]
+        derived_progress("scenario_tree", scenario_tree.get("status", "completed"), "real historical paths")
     except Exception as exc:
         details["scenario_tree_run"] = None
         details["scenario_tree_reason"] = str(exc)
+        derived_progress("scenario_tree", "not_available", "real historical paths")
+    try:
+        from moex_analytics.daily_briefing import build_daily_briefing
+
+        briefing = build_daily_briefing(con)
+        details["daily_briefing_id"] = briefing["briefing_id"]
+        details["daily_briefing_cutoff"] = str(briefing["cutoff"])
+        derived_progress("daily_briefing", briefing.get("status", "completed"), "local immutable archive")
+    except ValueError as exc:
+        details["daily_briefing_id"] = None
+        details["daily_briefing_reason"] = str(exc)
+        derived_progress("daily_briefing", "not_available", "local immutable archive")
     duration = time.perf_counter() - started
     con.execute(
         "UPDATE daily_update_runs SET finished_at=current_timestamp,duration_seconds=?,sources_checked=?,"
@@ -155,7 +184,6 @@ def _finish(
     from moex_analytics.transparency import update_receipt
 
     update_receipt(con, run_id)
-    monitor_state = update_monitor.load()
     if monitor_state.get("run_id") == run_id:
         monitor_status = "completed" if status in {"no_change", "dry_run"} else status
         update_monitor.finish(monitor_state, monitor_status)
@@ -219,7 +247,7 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
         "forecast_evaluation",
     ]
     total_requests = total_rows = errors = new_forecasts = matured = 0
-    results, market_changed, evidence_result = [], False, {}
+    results, market_changed, evidence_result, derived_updates = [], False, {}, []
     for number, dataset in enumerate(datasets, 1):
         if update_monitor.cancel_requested():
             update_monitor.clear_cancel()
@@ -306,10 +334,42 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
                 matured = result["matured_new"]
                 build_governance_metrics(con)
                 status = "completed" if matured else "no_change"
+            elif market_changed and dataset == "regimes":
+                from moex_analytics.ranking_engine import run_ranking_research
+                from moex_analytics.sector_rotation import run_sector_rotation_research
+                from moex_analytics.whole_market_state import build_whole_market_state
+
+                for name, operation in (
+                    ("market_state", build_whole_market_state),
+                    ("sector", run_sector_rotation_research),
+                    ("ranking", run_ranking_research),
+                ):
+                    try:
+                        result = operation(con)
+                        derived_updates.append(
+                            {"component": name, "status": result.get("status", "completed")}
+                        )
+                    except Exception as component_error:
+                        derived_updates.append(
+                            {
+                                "component": name,
+                                "status": "failed_using_previous_snapshot",
+                                "error": f"{type(component_error).__name__}: {component_error}",
+                            }
+                        )
+                status = (
+                    "completed_with_component_fallback"
+                    if any(row["status"] == "failed_using_previous_snapshot" for row in derived_updates)
+                    else "completed"
+                )
             elif market_changed and dataset == "portfolio":
+                from moex_analytics.portfolio_review import build_current_portfolio_review
+
                 from .human_intelligence import run_daily_intelligence
 
                 run_daily_intelligence(con, update_data=False)
+                review = build_current_portfolio_review(con)
+                derived_updates.append({"component": "portfolio_verdict", "status": review["status"]})
                 status = "completed"
             elif mode == "deep":
                 status = "scheduled_deep_component"
@@ -392,6 +452,22 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
         no_change,
         {
             "steps": results,
+            "derived_updates": derived_updates,
+            "pipeline_order": [
+                "prices",
+                "market_context",
+                "news",
+                "market_state",
+                "sector",
+                "ranking",
+                "current_analogs",
+                "portfolio_verdict",
+                "live_maturity",
+                "unified_snapshot",
+                "decision_changes",
+                "scenario_tree",
+                "daily_briefing",
+            ],
             "forecasts_pending": evidence_result.get("pending", 0),
             "matured_today": matured,
             "matured_total": evidence_result.get("matured", matured),

@@ -45,8 +45,28 @@ def _capture_live(con: Any) -> int:
     ).fetchall()
     inserted = 0
     for snapshot_id, cutoff, secid, status, action, report_id in rows:
+        canonical = con.execute(
+            "SELECT decision_id FROM canonical_live_decisions WHERE decision_date=? AND secid=?",
+            [cutoff, secid],
+        ).fetchone()
+        if canonical:
+            continue
+        existing = con.execute(
+            """SELECT decision_id,source_snapshot_id FROM decision_outcome_records
+            WHERE source_type='live_daily_snapshot' AND decision_date=? AND secid=?
+            ORDER BY created_at,decision_id LIMIT 1""",
+            [cutoff, secid],
+        ).fetchone()
+        if existing:
+            con.execute(
+                """INSERT INTO canonical_live_decisions (
+                decision_date,secid,decision_id,first_snapshot_id,immutable
+                ) VALUES (?,?,?,?,TRUE)""",
+                [cutoff, secid, existing[0], existing[1]],
+            )
+            continue
         decision_type = _decision_type(status, action)
-        decision_id = hashlib.sha256(f"live|{snapshot_id}|{secid}".encode()).hexdigest()[:24]
+        decision_id = hashlib.sha256(f"live|{cutoff}|{secid}".encode()).hexdigest()[:24]
         before = con.execute(
             "SELECT 1 FROM decision_outcome_records WHERE decision_id=?", [decision_id]
         ).fetchone()
@@ -55,6 +75,12 @@ def _capture_live(con: Any) -> int:
             decision_id,source_type,decision_date,secid,decision_type,source_snapshot_id,
             source_report_id,created_at,immutable) VALUES (?,'live_daily_snapshot',?,?,?,?,?,?,TRUE)""",
             [decision_id, cutoff, secid, decision_type, snapshot_id, report_id, datetime.now(UTC)],
+        )
+        con.execute(
+            """INSERT INTO canonical_live_decisions (
+            decision_date,secid,decision_id,first_snapshot_id,immutable
+            ) VALUES (?,?,?,?,TRUE)""",
+            [cutoff, secid, decision_id, snapshot_id],
         )
         inserted += int(before is None)
     return inserted
@@ -99,7 +125,9 @@ def _prices(con: Any, secid: str, cutoff: Any) -> list[tuple[Any, float]]:
 
 def _evaluate(con: Any) -> int:
     records = con.execute(
-        "SELECT decision_id,decision_date,secid,decision_type FROM decision_outcome_records"
+        """SELECT decision_id,decision_date,secid,decision_type FROM decision_outcome_records
+        WHERE source_type='historical_rule_replay' OR decision_id IN
+        (SELECT decision_id FROM canonical_live_decisions)"""
     ).fetchall()
     written = 0
     for decision_id, cutoff, secid, decision_type in records:
@@ -162,6 +190,8 @@ def _scorecards(con: Any) -> int:
         """SELECT r.source_type,r.decision_type,o.horizon,count(*),median(o.absolute_return),
         median(o.relative_return),median(o.max_drawdown),median(o.mfe),any_value(o.objective_metric)
         FROM decision_outcome_records r JOIN decision_realized_outcomes o USING(decision_id)
+        WHERE r.source_type='historical_rule_replay' OR r.decision_id IN
+        (SELECT decision_id FROM canonical_live_decisions)
         GROUP BY r.source_type,r.decision_type,o.horizon"""
     ).fetchall()
     rows = [
@@ -181,7 +211,9 @@ def update_decision_outcomes(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
     scorecards = _scorecards(con)
     counts = dict(
         con.execute(
-            "SELECT source_type,count(*) FROM decision_outcome_records GROUP BY source_type"
+            """SELECT source_type,count(*) FROM decision_outcome_records
+            WHERE source_type='historical_rule_replay' OR decision_id IN
+            (SELECT decision_id FROM canonical_live_decisions) GROUP BY source_type"""
         ).fetchall()
     )
     return {

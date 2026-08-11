@@ -37,6 +37,7 @@ from moex_analytics.dashboard.pages import (
     alpha_research,
     analytics,
     critical_data,
+    daily_briefing,
     data_quality,
     database_status,
     deep_backfill,
@@ -303,7 +304,7 @@ advanced_pages = {
     "Методология": methodology.render,
 }
 basic_pages = {
-    "Сегодня": evidence_decision.render_today,
+    "Сегодня": daily_briefing.render,
     "Рынок и прогноз": whole_market.render,
     "Мой портфель": human_portfolio.render_portfolio,
     "Что купить / куда вложить": evidence_decision.render_allocation,

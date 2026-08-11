@@ -23,6 +23,10 @@ STAGES = (
     ("portfolio", "Portfolio analytics", "local"),
     ("forecasts", "Forecast snapshots", "local immutable evidence"),
     ("forecast_evaluation", "Forecast maturity / scorecards", "local market prices"),
+    ("unified_snapshot", "Unified intelligence snapshot / current analogs", "local immutable evidence"),
+    ("decision_changes", "Decision change / outcome memory", "local immutable evidence"),
+    ("scenario_tree", "Market / portfolio scenario tree", "real historical paths"),
+    ("daily_briefing", "Daily investor briefing", "local immutable archive"),
 )
 
 
@@ -51,31 +55,71 @@ def load(path: Path = STATUS_PATH) -> dict[str, Any]:
 
 def start(run_id: str, update_type: str, path: Path = STATUS_PATH) -> dict[str, Any]:
     stamp = now_iso()
-    state = {"run_id": run_id, "pid": os.getpid(), "started_at": stamp,
-        "update_type": update_type, "current_stage": "starting", "current_source": None,
-        "current_dataset": None, "status": "starting", "last_progress_at": stamp,
-        "items_total": len(STAGES), "items_done": 0, "requests_total": None,
-        "requests_completed": 0, "rows_received": 0, "rows_inserted": 0,
-        "rows_revised": 0, "errors": 0, "retries": 0, "events": [], "stages": []}
+    state = {
+        "run_id": run_id,
+        "pid": os.getpid(),
+        "started_at": stamp,
+        "update_type": update_type,
+        "current_stage": "starting",
+        "current_source": None,
+        "current_dataset": None,
+        "status": "starting",
+        "last_progress_at": stamp,
+        "items_total": len(STAGES),
+        "items_done": 0,
+        "requests_total": None,
+        "requests_completed": 0,
+        "rows_received": 0,
+        "rows_inserted": 0,
+        "rows_revised": 0,
+        "errors": 0,
+        "retries": 0,
+        "events": [],
+        "stages": [],
+    }
     _write(state, path)
     return state
 
 
-def progress(state: dict[str, Any], *, dataset: str, stage: str, source: str,
-             status: str = "running", requests: int = 0, rows: int = 0,
-             error: str | None = None, duration: float | None = None,
-             path: Path = STATUS_PATH) -> dict[str, Any]:
-    state.update({"current_dataset": dataset, "current_stage": stage, "current_source": source,
-                  "status": status, "last_progress_at": now_iso()})
+def progress(
+    state: dict[str, Any],
+    *,
+    dataset: str,
+    stage: str,
+    source: str,
+    status: str = "running",
+    requests: int = 0,
+    rows: int = 0,
+    error: str | None = None,
+    duration: float | None = None,
+    path: Path = STATUS_PATH,
+) -> dict[str, Any]:
+    state.update(
+        {
+            "current_dataset": dataset,
+            "current_stage": stage,
+            "current_source": source,
+            "status": status,
+            "last_progress_at": now_iso(),
+        }
+    )
     state["requests_completed"] += requests
     state["rows_received"] += rows
     state["rows_inserted"] += rows
     state["errors"] += int(error is not None)
     if status not in {"running", "waiting_source", "retrying"}:
         state["items_done"] += 1
-        state["stages"].append({"dataset": dataset, "source": source, "status": status,
-                                "requests": requests, "rows": rows, "errors": int(bool(error)),
-                                "duration_seconds": duration})
+        state["stages"].append(
+            {
+                "dataset": dataset,
+                "source": source,
+                "status": status,
+                "requests": requests,
+                "rows": rows,
+                "errors": int(bool(error)),
+                "duration_seconds": duration,
+            }
+        )
     message = f"{source}: {stage} — {status}; requests={requests}; rows={rows}"
     if error:
         message += f"; {error}"
@@ -102,8 +146,9 @@ def clear_cancel(path: Path = CANCEL_PATH) -> None:
     path.unlink(missing_ok=True)
 
 
-def health(state: dict[str, Any], now: datetime | None = None,
-           slow_seconds: int = 30, stalled_seconds: int = 90) -> str:
+def health(
+    state: dict[str, Any], now: datetime | None = None, slow_seconds: int = 30, stalled_seconds: int = 90
+) -> str:
     if not state.get("last_progress_at"):
         return "UNKNOWN"
     now = now or datetime.now(UTC)

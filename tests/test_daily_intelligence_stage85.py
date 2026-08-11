@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from pathlib import Path
 
 import duckdb
 
@@ -7,6 +8,7 @@ from moex_analytics.daily_intelligence.core import (
     build_daily_snapshot,
     latest_daily_snapshot,
 )
+from moex_analytics.daily_intelligence.schema import DDL as DAILY_DDL
 from moex_analytics.visual_memory.schema import DDL as VISUAL_DDL
 
 PORTFOLIO = ("X5", "SBERP", "LKOH", "LSNGP", "MTSS", "TRNFP", "TATNP", "PHOR", "MOEX")
@@ -69,3 +71,23 @@ def test_required_fast_component_mismatch_is_partial_not_silently_current() -> N
     con.execute("UPDATE current_portfolio_ranking SET cutoff='2026-08-07'")
     snapshot = build_daily_snapshot(con)
     assert snapshot["compatibility"] == "PARTIAL"
+
+
+def test_latest_snapshot_is_safe_on_read_only_dashboard_connection(tmp_path: Path) -> None:
+    database = tmp_path / "snapshot.duckdb"
+    writer = duckdb.connect(str(database))
+    writer.execute(DAILY_DDL)
+    writer.execute(
+        """INSERT INTO daily_intelligence_snapshots (
+        snapshot_id,cutoff,created_at,compatibility,component_hash,compatibility_hash,
+        fast_current,fast_total,source_update_run,immutable
+        ) VALUES ('snapshot','2026-08-10',now(),'PARTIAL','components','contract',6,9,NULL,TRUE)"""
+    )
+    writer.close()
+
+    reader = duckdb.connect(str(database), read_only=True)
+    snapshot = latest_daily_snapshot(reader)
+    reader.close()
+
+    assert snapshot["snapshot_id"]
+    assert snapshot["cutoff"] == date(2026, 8, 10)

@@ -61,6 +61,30 @@ def test_live_and_historical_rule_replay_are_separate_and_idempotent() -> None:
     }
     assert live_objectives == {"path_stability_not_directional_correctness"}
     assert con.execute("SELECT bool_and(immutable) FROM decision_realized_outcomes").fetchone()[0]
+    assert con.execute("SELECT count(*) FROM canonical_live_decisions").fetchone()[0] == 1
+
+
+def test_second_snapshot_for_same_session_does_not_duplicate_live_decision() -> None:
+    con = _con()
+    update_decision_outcomes(con)
+    con.execute(
+        """INSERT INTO daily_decision_states
+        (snapshot_id,cutoff,secid,status,portfolio_action,source_report_id,immutable)
+        SELECT 's2',cutoff,secid,'consider','Можно рассматривать','r1',true
+        FROM daily_decision_states WHERE snapshot_id='s1'"""
+    )
+
+    result = update_decision_outcomes(con)
+
+    assert result["live_records"] == 1
+    assert result["inserted_live"] == 0
+    assert con.execute("SELECT count(*) FROM canonical_live_decisions").fetchone()[0] == 1
+    assert con.execute(
+        "SELECT first_snapshot_id FROM canonical_live_decisions"
+    ).fetchone()[0] == "s1"
+    assert con.execute(
+        "SELECT count(*) FROM decision_outcome_records WHERE source_type='live_daily_snapshot'"
+    ).fetchone()[0] == 1
 
 
 def test_insufficient_data_has_no_directional_performance_judgement() -> None:
