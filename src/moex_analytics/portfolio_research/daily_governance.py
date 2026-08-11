@@ -219,7 +219,11 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
                             duration=info["duration"])
 
                     client = MoexClient(progress_callback=request_progress)
-                    download_portfolio_history(con, client=client)
+                    from .portfolio_editor import load_positions
+
+                    current_secids = [row["secid"] for row in load_positions()]
+                    download_portfolio_history(con, client=client, incremental_only=True,
+                                               current_secids=current_secids)
                     build_portfolio_total_returns(con)
                     after = con.execute("SELECT count(*) FROM canonical_daily_prices").fetchone()[0]
                     rows, requests = after - before, client.request_count

@@ -38,6 +38,11 @@ SCENARIOS = {
 }
 
 
+def effective_segment_to(discovered_to, today, *, is_primary, incremental):
+    """Treat discovery history_to as terminal only for non-current segments."""
+    return today if incremental and is_primary else min(discovered_to, today)
+
+
 def ensure_schema(con):  # pragma: no cover
     con.execute(DDL)
 
@@ -308,7 +313,8 @@ def discover_portfolio_instruments(con, client=None):  # pragma: no cover
     return {"instruments": written}
 
 
-def download_portfolio_history(con, client=None):  # pragma: no cover
+def download_portfolio_history(con, client=None, *, incremental_only=False,
+                               current_secids=None):  # pragma: no cover
     ensure_schema(con)
     client = client or MoexClient()
     inserted = 0
@@ -316,6 +322,11 @@ def download_portfolio_history(con, client=None):  # pragma: no cover
     segments = con.execute(
         "SELECT canonical_secid,source_secid,engine,market,board,date_from,date_to,priority,is_primary FROM instrument_history_segments WHERE canonical_secid IN (SELECT secid FROM portfolio_instruments)"
     ).fetchall()
+    if current_secids is not None:
+        wanted = set(current_secids)
+        segments = [row for row in segments if row[0] in wanted]
+    if incremental_only:
+        segments = [row for row in segments if row[8]]
     for canonical, source, engine, market, board, from_date, to_date, _priority, _primary in segments:
         instrument = {
             "canonical_secid": canonical,
@@ -329,19 +340,29 @@ def download_portfolio_history(con, client=None):  # pragma: no cover
             [source, board],
         ).fetchone()[0]
         incremental_from = max(from_date, latest_local - timedelta(days=7)) if latest_local else from_date
-        if incremental_from > min(to_date, date.today()):
+        # Discovery's history_to is an observation, not a terminal bound for an
+        # active primary board. Capping at it caused the 2026-08-10 EOD gap.
+        effective_to = effective_segment_to(to_date, date.today(), is_primary=_primary,
+                                            incremental=incremental_only)
+        if incremental_from > effective_to:
             continue
         rows = []
         for payload, _, url in client.history_pages(
-            instrument, str(incremental_from), str(min(to_date, date.today()))
+            instrument, str(incremental_from), str(effective_to)
         ):
             rows.extend(client.normalize_history(payload, source, board, url))
         inserted += insert_daily_prices(con, rows)
-    for (secid,) in con.execute("SELECT secid FROM portfolio_instruments").fetchall():
-        rows = client.dividends(secid)
-        for r in rows:
-            con.execute("INSERT OR REPLACE INTO dividends VALUES (?,?,?,?,?,?,?,?,?)", list(r.values()))
-            dividends += 1
+        if incremental_only and _primary and rows:
+            observed_to = max(row["trade_date"] for row in rows if row["trade_date"])
+            con.execute("UPDATE instrument_history_segments SET date_to=? WHERE canonical_secid=? "
+                        "AND source_secid=? AND board=? AND is_primary",
+                        [observed_to, canonical, source, board])
+    if not incremental_only:
+        for (secid,) in con.execute("SELECT secid FROM portfolio_instruments").fetchall():
+            rows = client.dividends(secid)
+            for r in rows:
+                con.execute("INSERT OR REPLACE INTO dividends VALUES (?,?,?,?,?,?,?,?,?)", list(r.values()))
+                dividends += 1
     build_canonical(con)
     calculate_returns(con)
     calculate_features(con)

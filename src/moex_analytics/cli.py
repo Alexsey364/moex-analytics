@@ -576,6 +576,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("news-research-status")
     sub.add_parser("audit-current-data-quality")
     sub.add_parser("current-data-quality-status")
+    sub.add_parser("diagnose-portfolio-eod")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -2047,6 +2048,13 @@ def main() -> None:
                       if args.command == "audit-current-data-quality"
                       else current_quality.quality_summary)
             print(action(con))
+    elif args.command == "diagnose-portfolio-eod":
+        from .portfolio_eod import diagnose_portfolio_eod
+
+        init_database()
+        with connection() as con:
+            for row in diagnose_portfolio_eod(con):
+                print(row)
     elif args.command == "dashboard":
         from .dashboard.launcher import mark_process
 
