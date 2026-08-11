@@ -26,6 +26,8 @@ STAGES = (
     ("unified_snapshot", "Unified intelligence snapshot / current analogs", "local immutable evidence"),
     ("decision_changes", "Decision change / outcome memory", "local immutable evidence"),
     ("scenario_tree", "Market / portfolio scenario tree", "real historical paths"),
+    ("analog_projection", "Analog forward price projection", "real historical paths"),
+    ("price_scenarios", "Multi-horizon price scenarios", "research-only ranges"),
     ("daily_briefing", "Daily investor briefing", "local immutable archive"),
 )
 

@@ -341,6 +341,17 @@ def render_allocation() -> None:
         return
     amount = st.selectbox("Сумма", payload["allocations"].amount.astype(int).tolist(), index=1)
     row = payload["allocations"][payload["allocations"].amount == amount].iloc[0]
+    st.subheader("Лучшие бумаги по рыночной привлекательности")
+    market = payload["verdicts"].copy()
+    market["priority"] = market.investment_status.map(
+        lambda value: 0 if value.startswith("🟢") else 1 if value.startswith("🟡") else 2
+    )
+    st.dataframe(
+        market.sort_values(["priority", "instrument"])[["instrument", "investment_status"]],
+        hide_index=True,
+        use_container_width=True,
+    )
+    st.subheader("Как добавить их именно в мой портфель")
     st.warning(f"{row.status}: оставить в резерве {row.cash_reserve:,.0f} ₽")
     st.write(row.reason)
     st.json(json.loads(row.allocation_json))
@@ -361,9 +372,13 @@ def answer_question(payload: dict[str, Any], question: str) -> str:
             f"но вероятность роста не доказана. {verdicts.loc['MTSS'].portfolio_action}."
         )
     if "СБЕР" in question.upper() or "SBER" in question.upper():
+        sber = verdicts.loc["SBERP"]
         return (
-            "SBERP не зелёный: направленный edge не доказан, live-выборка мала, "
-            f"а текущий вес ограничивает пополнение. {verdicts.loc['SBERP'].portfolio_action}."
+            f"По самой бумаге: {sber.get('investment_status', sber.portfolio_action)} — "
+            f"{sber.get('investment_reason', 'направленный edge не доказан')}. "
+            f"По вашему портфелю: {sber.get('allocation_status', sber.portfolio_action)} — "
+            f"{sber.get('allocation_reason', 'ограничение не рассчитано')}. "
+            "Исторические сценарии являются диапазоном реальных эпизодов, не вероятностью."
         )
     if "6 месяцев" in question:
         best = horizons[horizons.horizon == 120].sort_values("relative_rank").iloc[0]

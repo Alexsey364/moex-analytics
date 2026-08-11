@@ -152,6 +152,22 @@ def _finish(
         details["scenario_tree_reason"] = str(exc)
         derived_progress("scenario_tree", "not_available", "real historical paths")
     try:
+        from moex_analytics.analog_projection import build_analog_projections
+        from moex_analytics.price_scenarios import build_price_scenarios
+
+        projection = build_analog_projections(con)
+        scenarios = build_price_scenarios(con)
+        details["analog_projection_run"] = projection["run_id"]
+        details["price_scenario_run"] = scenarios["run_id"]
+        derived_progress("analog_projection", projection["status"], "real historical paths")
+        derived_progress("price_scenarios", scenarios["status"], "research-only ranges")
+    except Exception as exc:
+        details["analog_projection_run"] = None
+        details["price_scenario_run"] = None
+        details["projection_reason"] = str(exc)
+        derived_progress("analog_projection", "not_available", "real historical paths")
+        derived_progress("price_scenarios", "not_available", "research-only ranges")
+    try:
         from moex_analytics.daily_briefing import build_daily_briefing
 
         briefing = build_daily_briefing(con)
@@ -466,6 +482,8 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
                 "unified_snapshot",
                 "decision_changes",
                 "scenario_tree",
+                "analog_projection",
+                "price_scenarios",
                 "daily_briefing",
             ],
             "forecasts_pending": evidence_result.get("pending", 0),

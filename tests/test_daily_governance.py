@@ -56,6 +56,8 @@ def test_weekend_quick_no_change_same_cutoff_and_request_log():
         "unified_snapshot",
         "decision_changes",
         "scenario_tree",
+        "analog_projection",
+        "price_scenarios",
         "daily_briefing",
     ]
     assert result["daily_snapshot_id"]

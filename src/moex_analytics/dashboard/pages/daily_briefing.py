@@ -75,9 +75,17 @@ def render() -> None:
     left, right = st.columns(2)
     with left:
         st.subheader("На что сегодня обратить внимание")
-        attention = sorted(payload["verdicts"], key=lambda row: "не увелич" not in row["status"].lower())
+        attention = sorted(
+            payload["verdicts"],
+            key=lambda row: not row.get("allocation", row.get("status", "")).startswith("🔴"),
+        )
         for row in attention[:3]:
-            st.write(f"• **{row['secid']}** — {row['status']}; риск: {row['risk']}")
+            investment = row.get("investment", row.get("status", "—"))
+            allocation = row.get("allocation", "—")
+            st.write(
+                f"• **{row['secid']}** — рынок: {investment}; портфель: {allocation}; "
+                f"риск: {row['risk']}"
+            )
         st.subheader("На что сейчас похож рынок")
         for analog in payload["analogs"]:
             st.write(f"• {analog['date']} · поддержка {analog['support']} бумаг")

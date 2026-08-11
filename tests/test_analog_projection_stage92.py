@@ -86,3 +86,6 @@ def test_missing_history_is_explicit_and_never_fabricated() -> None:
     assert con.execute(
         "SELECT count(*) FROM analog_projected_paths WHERE secid='X5'"
     ).fetchone()[0] == 0
+    assert con.execute(
+        "SELECT count(*) FROM analog_projection_bands WHERE secid='X5'"
+    ).fetchone()[0] == 0

@@ -14,7 +14,7 @@ from moex_analytics.conditioned_stock_forecasting.core import SECIDS
 
 from .schema import ensure_schema
 
-VERSION = "analog-forward-projection-v1"
+VERSION = "analog-forward-projection-v2"
 HORIZONS = (1, 5, 20, 40, 60, 80, 100, 120, 250)
 MIN_ANALOGS = 5
 
@@ -112,10 +112,11 @@ def build_analog_projections(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
                      current_price, current_price * (1 + value), similarity[analog_date],
                      analog_date == medoid, True]
                 )
-        band_rows.append(
-            [run_id, secid, 0, current_price, len(paths), current_price, current_price, current_price,
-             current_price, current_price, True]
-        )
+        if paths:
+            band_rows.append(
+                [run_id, secid, 0, current_price, len(paths), current_price, current_price,
+                 current_price, current_price, current_price, True]
+            )
         for session, values in sorted(by_session.items()):
             if len(values) < MIN_ANALOGS:
                 continue

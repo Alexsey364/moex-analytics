@@ -17,7 +17,7 @@ from moex_analytics.config import PROJECT_ROOT
 
 from .schema import ensure_schema
 
-VERSION = "daily-investor-briefing-v1"
+VERSION = "daily-investor-briefing-v2.1"
 EXPORT_DIR = PROJECT_ROOT / "reports" / "daily_briefings"
 
 
@@ -61,18 +61,40 @@ def _payload(con: Any, snapshot_id: str, cutoff: Any) -> dict[str, Any]:
     verdicts = []
     allocation = None
     if review:
+        verdict_run = _safe_row(
+            con,
+            """SELECT run_id FROM portfolio_verdict_runs WHERE cutoff=? AND status='completed'
+            ORDER BY created_at DESC LIMIT 1""",
+            [cutoff],
+        )
         verdicts = _safe_rows(
             con,
-            """SELECT v.instrument,v.portfolio_action,v.risk_status,
+            """SELECT v.instrument,s.investment_status,s.allocation_status,v.risk_status,
             max(CASE WHEN h.horizon=20 THEN h.directional_state END),
             max(CASE WHEN h.horizon=60 THEN h.directional_state END),
             max(CASE WHEN h.horizon=120 THEN h.directional_state END),
             max(CASE WHEN h.horizon=250 THEN h.directional_state END)
             FROM portfolio_final_verdicts v JOIN portfolio_horizon_verdicts h
-            ON v.run_id=h.run_id AND v.instrument=h.instrument WHERE v.run_id=?
-            GROUP BY v.instrument,v.portfolio_action,v.risk_status ORDER BY v.instrument""",
-            [review[1]],
+            ON v.run_id=h.run_id AND v.instrument=h.instrument
+            JOIN investment_allocation_views s
+            ON s.run_id=v.run_id AND s.instrument=v.instrument WHERE v.run_id=?
+            GROUP BY v.instrument,s.investment_status,s.allocation_status,v.risk_status
+            ORDER BY v.instrument""",
+            [verdict_run[0] if verdict_run else review[1]],
         )
+        if not verdicts:
+            verdicts = _safe_rows(
+                con,
+                """SELECT v.instrument,v.portfolio_action,v.portfolio_action,v.risk_status,
+                max(CASE WHEN h.horizon=20 THEN h.directional_state END),
+                max(CASE WHEN h.horizon=60 THEN h.directional_state END),
+                max(CASE WHEN h.horizon=120 THEN h.directional_state END),
+                max(CASE WHEN h.horizon=250 THEN h.directional_state END)
+                FROM portfolio_final_verdicts v JOIN portfolio_horizon_verdicts h
+                ON v.run_id=h.run_id AND v.instrument=h.instrument WHERE v.run_id=?
+                GROUP BY v.instrument,v.portfolio_action,v.risk_status ORDER BY v.instrument""",
+                [review[1]],
+            )
         allocation = _safe_row(
             con,
             "SELECT allocation_json,cash_reserve,status,reason FROM portfolio_review_allocations "
@@ -144,7 +166,13 @@ def _payload(con: Any, snapshot_id: str, cutoff: Any) -> dict[str, Any]:
             for row in changes
         ],
         "verdicts": [
-            dict(zip(("secid", "status", "risk", "1m", "3m", "6m", "1y"), row, strict=True))
+            dict(
+                zip(
+                    ("secid", "investment", "allocation", "risk", "1m", "3m", "6m", "1y"),
+                    row,
+                    strict=True,
+                )
+            )
             for row in verdicts
         ],
         "new_money": {
@@ -200,12 +228,13 @@ def _markdown(payload: dict[str, Any]) -> str:
             "",
             "## Портфель",
             "",
-            "| Акция | Статус | 1м | 3м | 6м | 12м | Риск |",
-            "|---|---|---|---|---|---|---|",
+            "| Акция | Рыночный вывод | Портфельный вывод | 1м | 3м | 6м | 12м | Риск |",
+            "|---|---|---|---|---|---|---|---|",
         ]
     )
     lines.extend(
-        f"| {row['secid']} | {row['status']} | {row['1m']} | {row['3m']} | "
+        f"| {row['secid']} | {row['investment']} | {row['allocation']} | "
+        f"{row['1m']} | {row['3m']} | "
         f"{row['6m']} | {row['1y']} | {row['risk']} |"
         for row in payload["verdicts"]
     )
