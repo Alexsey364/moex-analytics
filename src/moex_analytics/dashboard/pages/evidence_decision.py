@@ -61,6 +61,14 @@ def load_payload() -> dict[str, Any]:
             """SELECT market_state_label,return_20,drawdown,realized_vol20,volatility_json,
             rates_json FROM whole_market_state_daily ORDER BY trade_date DESC LIMIT 1"""
         ).fetchone()
+        try:
+            changes = con.execute(
+                """SELECT secid,change_state,material,reasons_json FROM daily_decision_changes
+                WHERE snapshot_id=(SELECT snapshot_id FROM daily_intelligence_snapshots
+                ORDER BY created_at DESC LIMIT 1) ORDER BY material DESC,secid"""
+            ).fetchall()
+        except Exception:
+            changes = []
         return {
             "status": "ready",
             "review_id": review[0],
@@ -78,6 +86,15 @@ def load_payload() -> dict[str, Any]:
                 "volatility_json": json.loads(state[4] or "{}"),
                 "rates": json.loads(state[5] or "{}"),
             },
+            "changes": [
+                {
+                    "secid": row[0],
+                    "state": row[1],
+                    "material": row[2],
+                    "reasons": json.loads(row[3] or "[]"),
+                }
+                for row in changes
+            ],
         }
 
 
@@ -135,6 +152,14 @@ def render_today() -> None:
         return
     _overview(payload)
     _market(payload)
+    st.subheader("Что изменилось после прошлого обновления")
+    icons = {"IMPROVED": "🟢", "DETERIORATED": "🟠", "MIXED": "🟡", "UNCHANGED": "→"}
+    material = [row for row in payload.get("changes", []) if row["material"]]
+    if material:
+        for row in material:
+            st.write(f"{icons.get(row['state'], '→')} **{row['secid']}** — " + "; ".join(row["reasons"]))
+    else:
+        st.caption("→ Материальных изменений относительно прошлого торгового snapshot нет.")
     st.dataframe(_table(payload), hide_index=True, use_container_width=True)
     st.caption(f"Единый snapshot: {payload['cutoff']} · {payload['consistency_hash'][:12]}")
     st.caption("Research evidence не является числовой вероятностью или торговой рекомендацией.")

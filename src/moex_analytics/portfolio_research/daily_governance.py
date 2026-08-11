@@ -110,6 +110,15 @@ def _finish(
     details["daily_snapshot_id"] = unified_snapshot.get("snapshot_id")
     details["daily_snapshot_cutoff"] = str(unified_snapshot.get("cutoff") or "")
     details["daily_snapshot_compatibility"] = unified_snapshot.get("compatibility")
+    try:
+        from moex_analytics.decision_memory import capture_decision_snapshot
+
+        decision_memory = capture_decision_snapshot(con, unified_snapshot.get("snapshot_id"))
+        details["decision_memory"] = decision_memory.get("status")
+        details["decision_material_changes"] = decision_memory.get("material_changes", 0)
+    except ValueError as exc:
+        details["decision_memory"] = "not_captured"
+        details["decision_memory_reason"] = str(exc)
     duration = time.perf_counter() - started
     con.execute(
         "UPDATE daily_update_runs SET finished_at=current_timestamp,duration_seconds=?,sources_checked=?,"
