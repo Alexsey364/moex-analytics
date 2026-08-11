@@ -568,6 +568,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("write-long-horizon-ranking-report")
     sub.add_parser("build-news-source-registry")
     sub.add_parser("news-source-registry-status")
+    sub.add_parser("ingest-live-news")
+    sub.add_parser("news-intelligence-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -2002,6 +2004,15 @@ def main() -> None:
             action = (news_foundation.load_source_registry
                       if args.command == "build-news-source-registry"
                       else news_foundation.source_status)
+            print(action(con))
+    elif args.command in {"ingest-live-news", "news-intelligence-status"}:
+        from .news_intelligence import core as news_intelligence
+
+        init_database()
+        with connection() as con:
+            action = (news_intelligence.ingest_live_news
+                      if args.command == "ingest-live-news"
+                      else news_intelligence.news_status)
             print(action(con))
     elif args.command == "dashboard":
         from .dashboard.launcher import mark_process
