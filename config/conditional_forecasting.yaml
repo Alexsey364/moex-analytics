@@ -21,3 +21,8 @@ conditional_weighting:
   minimum_effective_sample: 4.0
   concentrated_max_weight: 0.50
   recency_weighting: none
+regime_conditioning:
+  version: multidimensional-regime-v1.1
+  expected_compatibility: 0.80
+  alternative_compatibility: 0.55
+  transition_horizons: [20, 60, 120]
