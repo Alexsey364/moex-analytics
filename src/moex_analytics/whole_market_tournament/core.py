@@ -12,7 +12,7 @@ import numpy as np
 
 from .schema import ensure_schema
 
-VERSION = "stage77-v2"
+VERSION = "stage80.5-v3"
 SEED = 77
 
 
@@ -197,7 +197,10 @@ def run_whole_market_tournament(con: duckdb.DuckDBPyConnection) -> dict[str, Any
             and adjusted_p < 0.05
             and item["regime"] is True
         )
-        status = "production_candidate" if proven and item["subperiod"] is True else "experimental"
+        # A positive aggregate, bootstrap, BH, subperiod and regime result is not
+        # sufficient for production candidacy without a separately persisted
+        # walk-forward fold-stability gate and independent replication.
+        status = "shadow_candidate" if proven and item["subperiod"] is True else "experimental"
         if item["gain"] is None or item["gain"] <= 0:
             status = "rejected"
         if item["p"] is None and status != "rejected":
@@ -252,7 +255,14 @@ def run_whole_market_tournament(con: duckdb.DuckDBPyConnection) -> dict[str, Any
             True,
             True,
             "completed",
-            json.dumps({"bh_multiple_testing": True, "auto_promotion": False}),
+            json.dumps(
+                {
+                    "bh_multiple_testing": True,
+                    "auto_promotion": False,
+                    "production_candidate_requires_fold_stability": True,
+                    "independent_replication": False,
+                }
+            ),
         ],
     )
     return _status(con, run_id) | {"idempotent": False}
@@ -260,11 +270,11 @@ def run_whole_market_tournament(con: duckdb.DuckDBPyConnection) -> dict[str, Any
 
 def _status(con: duckdb.DuckDBPyConnection, run_id: str) -> dict[str, Any]:
     row = con.execute(
-        """SELECT count(*),sum(status='production_candidate'),sum(status='experimental'),
+        """SELECT count(*),sum(status='shadow_candidate'),sum(status='experimental'),
     sum(status='insufficient_evidence'),sum(status='rejected') FROM whole_market_tournament_entries
     WHERE run_id=?""",
         [run_id],
     ).fetchone()
     return dict(
-        zip(("entries", "candidates", "experimental", "insufficient", "rejected"), row, strict=True)
+        zip(("entries", "shadow_candidates", "experimental", "insufficient", "rejected"), row, strict=True)
     ) | {"run_id": run_id, "status": "completed", "auto_promoted": False, "probability_gate_changed": False}

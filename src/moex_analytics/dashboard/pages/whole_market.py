@@ -25,6 +25,12 @@ def market_reasons(state: dict[str, Any]) -> tuple[list[str], list[str]]:
         (positive if drawdown > -0.05 else caution).append(f"Просадка от максимума: {drawdown:.1%}")
     if volatility is not None:
         (positive if volatility < 0.2 else caution).append(f"Реализованная волатильность: {volatility:.1%}")
+    rvi = state.get("volatility", {}).get("rvi")
+    if rvi is not None and rvi >= 30:
+        caution.append(f"Индекс волатильности RVI: {rvi:.1f}")
+    key_rate = state.get("rates", {}).get("cbr_key_rate")
+    if key_rate is not None and key_rate >= 12:
+        caution.append(f"Ключевая ставка: {key_rate:.1f}%")
     return positive[:3], caution[:3]
 
 
@@ -39,7 +45,8 @@ def load_dashboard_payload() -> dict[str, Any]:
         ).fetchone()[0]
         state_row = con.execute(
             """SELECT trade_date,market_state_label,return_20,drawdown,realized_vol20,
-            breadth_json,liquidity_json,regime_json FROM whole_market_state_daily
+            breadth_json,liquidity_json,regime_json,volatility_json,rates_json
+            FROM whole_market_state_daily
             WHERE run_id=? ORDER BY trade_date DESC LIMIT 1""",
             [state_run],
         ).fetchone()
@@ -52,9 +59,11 @@ def load_dashboard_payload() -> dict[str, Any]:
             "breadth",
             "liquidity",
             "regime",
+            "volatility",
+            "rates",
         )
         state = dict(zip(keys, state_row, strict=True))
-        for key in ("breadth", "liquidity", "regime"):
+        for key in ("breadth", "liquidity", "regime", "volatility", "rates"):
             state[key] = json.loads(state[key] or "{}")
         live_run = con.execute(
             "SELECT run_id FROM whole_market_live_runs ORDER BY created_at DESC LIMIT 1"
@@ -159,6 +168,11 @@ def render() -> None:
         use_container_width=True,
     )
     st.caption("Числовая вероятность не публикуется: probability gate остаётся закрытым.")
+    if state["state"] == "stress" and state["return_20"] is not None and state["return_20"] > 0:
+        st.caption(
+            "Почему stress при росте: классификатор сначала проверяет структурную просадку и риск; "
+            "20-дневный отскок сам по себе не отменяет просадку более 20%."
+        )
     st.subheader("Мои девять акций")
     stocks = payload["stocks"]
     selected_horizon = st.selectbox("Горизонт карточек", sorted(stocks.horizon.unique()), index=1)

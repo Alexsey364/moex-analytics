@@ -200,11 +200,16 @@ def render_evidence(evidence: dict[str, Any]) -> str:
         "",
         "## Best conditioned block by portfolio stock and horizon",
         "",
-        "| Stock | Horizon | Block | MAE improvement | Return correlation | Status |",
+        "| Stock | Horizon | Block | MAE effect | Return correlation | Status |",
         "|---|---:|---|---:|---:|---|",
     ]
     for row in evidence["stocks"]:
-        lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]:+.5f} | {row[4]:+.3f} | {row[5]} |")
+        effect = (
+            f"MAE improved by {row[3]:.5f}"
+            if row[3] >= 0
+            else f"MAE deteriorated by {abs(row[3]):.5f}"
+        )
+        lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {effect} | {row[4]:+.3f} | {row[5]} |")
     lines += ["", "## Lead-lag associations (not causality)", ""]
     lines.extend(
         f"- {row[0]}: {row[1]} useful slices; mean |holdout correlation| {row[2]:.3f}"

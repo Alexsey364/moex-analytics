@@ -16,7 +16,7 @@ from sklearn.preprocessing import StandardScaler
 
 from .schema import ensure_schema
 
-VERSION = "stage74-v1"
+VERSION = "stage80.5-v2"
 SECIDS = ("X5", "SBERP", "LKOH", "LSNGP", "MTSS", "TRNFP", "TATNP", "PHOR", "MOEX")
 HORIZONS = (5, 20, 60, 120, 250)
 SECTOR_MAP = {
@@ -81,6 +81,7 @@ def run_conditioned_stock_research(con: duckdb.DuckDBPyConnection) -> dict[str, 
     if con.execute("SELECT 1 FROM conditioned_stock_runs WHERE run_id=?", [run_id]).fetchone():
         return _status(con, run_id) | {"idempotent": True}
     cards: list[list[object]] = []
+    oos_rows: list[list[object]] = []
     dates: list[pd.Timestamp] = []
     for secid in SECIDS:
         if secid not in prices:
@@ -121,6 +122,16 @@ def run_conditioned_stock_research(con: duckdb.DuckDBPyConnection) -> dict[str, 
                 mae = float(np.mean(np.abs(holdout.target - prediction)))
                 corr = float(pd.Series(prediction).corr(pd.Series(holdout.target.to_numpy())))
                 improvement = baseline_mae - mae
+                gains = np.abs(holdout.target.to_numpy() - baseline) - np.abs(
+                    holdout.target.to_numpy() - prediction
+                )
+                rng = np.random.default_rng(74)
+                samples = gains[
+                    rng.integers(0, len(gains), size=(1000, len(gains)))
+                ].mean(axis=1)
+                ci_low, ci_high = np.quantile(samples, [0.025, 0.975])
+                folds = [part for part in np.array_split(gains, 5) if len(part)]
+                fold_stable = len(folds) == 5 and sum(float(part.mean()) > 0 for part in folds) >= 4
                 status = "experimental" if improvement > 0 and corr > 0.02 else "weak_or_rejected"
                 cards.append(
                     [
@@ -135,13 +146,42 @@ def run_conditioned_stock_research(con: duckdb.DuckDBPyConnection) -> dict[str, 
                         corr,
                         status,
                         json.dumps({"frozen_holdout": True, "stage52_comparison": "same baseline semantics"}),
+                        float(ci_low),
+                        float(ci_high),
+                        fold_stable,
                     ]
                 )
+                for trade_date, actual, candidate, gain in zip(
+                    holdout.index, holdout.target, prediction, gains, strict=True
+                ):
+                    oos_rows.append(
+                        [
+                            run_id,
+                            secid,
+                            horizon,
+                            block,
+                            trade_date,
+                            float(actual),
+                            baseline,
+                            float(candidate),
+                            abs(float(actual) - baseline),
+                            abs(float(actual) - float(candidate)),
+                            float(gain),
+                        ]
+                    )
     con.executemany(
         """INSERT INTO conditioned_stock_scorecards
         (run_id,secid,horizon,feature_block,observations,baseline_mae,model_mae,improvement,
-        return_correlation,status,details_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        return_correlation,status,details_json,ci_low,ci_high,fold_stable)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         cards,
+    )
+    con.executemany(
+        """INSERT INTO conditioned_stock_oos
+        (run_id,secid,horizon,feature_block,trade_date,actual_return,baseline_prediction,
+        candidate_prediction,baseline_absolute_error,candidate_absolute_error,mae_gain)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        oos_rows,
     )
     unique_dates = sorted(set(dates))
     holdout_from = unique_dates[int(len(unique_dates) * 0.8)]
