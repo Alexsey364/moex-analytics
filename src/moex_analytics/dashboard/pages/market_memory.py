@@ -229,6 +229,65 @@ def _scenarios(snapshot: dict[str, Any]) -> None:
             st.caption(f"Реальный представитель: {scenario['representative_date']}")
 
 
+def _state_memory(instrument: str, horizon: int) -> None:
+    labels = {
+        "Похож график": "path",
+        "Похоже состояние факторов": "state",
+        "Похожи график и состояние": "combined",
+    }
+    analog_label = st.radio("Тип исторической памяти", list(labels), horizontal=True)
+    analog_type = labels[analog_label]
+    try:
+        with read_connection() as con:
+            run = con.execute(
+                "SELECT run_id FROM state_similarity_runs WHERE status='completed' "
+                "ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+            matches = con.execute(
+                """SELECT analog_date,rank,similarity,factors_json FROM state_similarity_matches
+                WHERE run_id=? AND secid=? AND analog_type=? ORDER BY rank LIMIT 5""",
+                [run[0], instrument, analog_type],
+            ).fetchall()
+            validation = con.execute(
+                """SELECT observations,mae,baseline_mae,mae_improvement,status,
+                combined_weight_allowed FROM state_similarity_validation
+                WHERE run_id=? AND secid=? AND analog_type=? AND horizon=?""",
+                [run[0], instrument, analog_type, horizon],
+            ).fetchone()
+    except Exception:
+        matches, validation = [], None
+    st.subheader("Память состояния аналитических факторов")
+    if not matches:
+        st.info("⚪ Для этой бумаги пока недостаточно PIT-safe истории состояния факторов.")
+        return
+    st.write(
+        "Реальные независимые даты: "
+        + " · ".join(f"{row[0]} (сходство {row[2]:.2f})" for row in matches)
+    )
+    factors = json.loads(matches[0][3] or "{}")
+    fingerprint = [
+        {
+            "Фактор": key,
+            "Сейчас": values["current"],
+            "Тогда": values["historical"],
+            "Разница": values["current"] - values["historical"],
+        }
+        for key, values in factors.items()
+    ]
+    st.dataframe(fingerprint, hide_index=True, use_container_width=True)
+    if validation:
+        observations, mae, baseline, improvement, status, weight_allowed = validation
+        if mae is None:
+            st.caption(f"Frozen OOS: N={observations}; статус {status} — выборка недостаточна.")
+        else:
+            st.caption(
+                f"Frozen OOS: N={observations}; MAE {mae:.3f} против baseline {baseline:.3f}; "
+                f"улучшение {improvement:+.3f}; статус {status}."
+            )
+        if analog_type == "combined" and not weight_allowed:
+            st.warning("Combined-аналоги не лучше обоих компонентов и не получают больший вес.")
+
+
 def _technical(instrument: str, horizon: int) -> None:
     with read_connection() as con:
         status = market_memory_status(con, ensure=False)
@@ -288,6 +347,7 @@ def render() -> None:
     _summary(snapshot, horizon_name)
     _cards(snapshot)
     _why(snapshot)
+    _state_memory(instrument, horizon)
     _scenarios(snapshot)
     selected = st.selectbox("Сравнить подробно", [card["date"] for card in snapshot["cards"]])
     selected_path = next(path for path in snapshot["analogs"] if path["date"] == selected)
