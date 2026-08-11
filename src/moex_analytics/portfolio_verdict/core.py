@@ -11,7 +11,7 @@ import duckdb
 
 from .schema import ensure_schema
 
-VERSION = "stage82-v3"
+VERSION = "stage82-v4"
 HORIZON_LABELS = {5: "сейчас", 20: "1 месяц", 60: "3 месяца", 120: "6 месяцев", 250: "1 год"}
 
 
@@ -83,7 +83,11 @@ def build_portfolio_verdicts(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
         # MAE/rank precision evidence is not a directional edge. Only a block
         # explicitly validated for direction may unlock a positive action.
         directional = any(item[0] == "validated_direction" for item in eligible)
-        strengths = [item[1] for item in blocks]
+        strengths = [
+            item[1]
+            for item in blocks
+            if item[0] not in {"risk", "portfolio_concentration", "live", "news"}
+        ]
         strength = (
             "stronger"
             if "STRONG_RESEARCH_EVIDENCE" in strengths

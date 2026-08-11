@@ -39,6 +39,7 @@ from moex_analytics.dashboard.pages import (
     data_quality,
     database_status,
     deep_backfill,
+    evidence_decision,
     feature_learning,
     forecast_scorecard,
     fundamentals,
@@ -286,20 +287,20 @@ advanced_pages = {
     "Методология": methodology.render,
 }
 basic_pages = {
-    "Сегодня": human_portfolio.render_today,
+    "Сегодня": evidence_decision.render_today,
     "Рынок и прогноз": whole_market.render,
     "Мой портфель": human_portfolio.render_portfolio,
-    "Что купить / куда вложить": human_portfolio.render_allocation,
-    "Мои акции": human_portfolio.render_stocks,
+    "Что купить / куда вложить": evidence_decision.render_allocation,
+    "Мои акции": evidence_decision.render_stocks,
     "Что влияет на рынок": news_intelligence.render,
     "Похожие ситуации": market_memory.render,
-    "Риски": human_portfolio.render_risks,
+    "Риски": evidence_decision.render_risks,
     "Дивиденды": human_portfolio.render_dividends,
-    "Реальная проверка": forecast_scorecard.render_live_validation,
+    "Реальная проверка": evidence_decision.render_live,
     "Качество данных": human_portfolio.render_data_quality_basic,
     "Обновить данные": transparency.render_update,
     "Как принимается решение": human_portfolio.render_decision_flow,
-    "Спросить помощника": human_portfolio.render_ask,
+    "Спросить помощника": evidence_decision.render_ask,
 }
 advanced = st.sidebar.toggle("Расширенный режим", value=False)
 if advanced:
