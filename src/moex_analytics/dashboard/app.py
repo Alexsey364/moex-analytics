@@ -28,6 +28,7 @@ from moex_analytics.dashboard.data_access import (
     current_quality_summary,
     database_summary,
 )
+from moex_analytics.dashboard.human_experience import short_date
 from moex_analytics.dashboard.launcher import mark_current_process
 from moex_analytics.dashboard.navigation import group_advanced_pages, navigation_pages
 from moex_analytics.dashboard.pages import (
@@ -55,7 +56,6 @@ from moex_analytics.dashboard.pages import (
     portfolio_learning,
     portfolio_research,
     predictive_command_center,
-    predictive_expansion,
     predictive_foundation,
     sber_decision,
     sber_intelligence,
@@ -70,10 +70,10 @@ from moex_analytics.dashboard.pages import (
 from moex_analytics.dashboard.visual_semantics import theme_css
 from moex_analytics.database import database_path, init_database
 
-st.set_page_config(page_title="Аналитика рынка MOEX", layout="wide")
+st.set_page_config(page_title="Мой инвестиционный помощник", layout="wide")
 st.markdown(theme_css(), unsafe_allow_html=True)
 mark_current_process()
-st.title("Аналитика рынка MOEX")
+st.title("Мой инвестиционный помощник")
 
 if not database_path().exists():
     st.warning("База данных ещё не создана.")
@@ -95,16 +95,16 @@ if not summary.get("ready"):
 
 quality = current_quality_summary()
 top = st.columns(5)
-top[0].metric("Торговые данные", f"по {summary.get('date_to') or '—'}")
-top[1].metric("Сегодня", str(quality.get("today") or "—"))
+top[0].metric("Торговые данные", f"по {short_date(summary.get('date_to'))}")
+top[1].metric("Сегодня", short_date(quality.get("today")))
 status_icon = {"green": "🟢 актуально", "yellow": "🟡 есть предупреждения",
                "red": "🔴 обновление требуется"}.get(quality.get("status"), "⚪ не рассчитано")
 top[2].metric("Статус", status_icon)
 top[3].metric("Критических", quality.get("critical", 0))
 top[4].metric("Предупреждений", quality.get("warnings", 0))
 st.caption(
-    f"Диапазон торговой истории: {summary.get('date_from', '—')} — "
-    f"{summary.get('date_to', '—')}. Технический журнал загрузок доступен в истории обновлений."
+    f"Диапазон торговой истории: {short_date(summary.get('date_from'))} — "
+    f"{short_date(summary.get('date_to'))}. Технический журнал доступен в расширенном режиме."
 )
 
 advanced_pages = {
@@ -271,30 +271,19 @@ advanced_pages = {
     "Методология": methodology.render,
 }
 basic_pages = {
-    "Обучение системы": learning_cycle.render_basic,
     "Сегодня": human_portfolio.render_today,
-    "Что сейчас двигает рынок": news_intelligence.render,
-    "Мои данные": transparency.render_data,
-    "Развитие базы": predictive_expansion.render,
-    "Состояние рынка": trading_statistics.render_market_state,
-    "Прогноз рынка и моих акций": predictive_command_center.render_main,
-    "Что сейчас выглядит лучше": predictive_command_center.render_distilled,
     "Мой портфель": human_portfolio.render_portfolio,
     "Куда вложить пополнение": human_portfolio.render_allocation,
     "Акции": human_portfolio.render_stocks,
     "Спросить про портфель": human_portfolio.render_ask,
-    "Как программа прогнозирует": forecast_scorecard.render_basic,
-    "Как программа учится": adaptive_learning.render_basic,
-    "Качество прогнозов": forecast_scorecard.render_quality,
-    "Реальная проверка": forecast_scorecard.render_live_validation,
-    "Когда начнётся реальная проверка": forecast_scorecard.render_maturity_calendar,
-    "Что программа уже доказала": forecast_scorecard.render_live_evidence,
     "Дивиденды": human_portfolio.render_dividends,
     "Риски": human_portfolio.render_risks,
     "Сценарии": human_portfolio.render_scenarios,
-    "Обновить данные": transparency.render_update,
-    "История обновлений": forecast_scorecard.render_update_history,
+    "Новости": news_intelligence.render,
+    "Исторические аналоги": market_memory.render,
+    "Реальная проверка": forecast_scorecard.render_live_validation,
     "Качество данных": historical_data.render_basic,
+    "Обновить данные": transparency.render_update,
 }
 advanced = st.sidebar.toggle("Расширенный режим", value=False)
 if advanced:

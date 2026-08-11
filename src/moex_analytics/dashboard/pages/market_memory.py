@@ -3,6 +3,7 @@
 import streamlit as st
 
 from moex_analytics.dashboard.data_access import read_connection
+from moex_analytics.dashboard.human_experience import human_status
 from moex_analytics.market_memory import market_memory_status
 
 
@@ -49,13 +50,14 @@ def render_basic_analogs(instrument: str) -> None:
     if not rows:
         st.info("Исторических аналогов для этой бумаги недостаточно.")
         return
-    st.subheader("Исторически похожие ситуации")
-    for horizon, sample, similarity, median, q10, q90, result_status in rows:
+    st.subheader("На какие периоды это похоже")
+    horizon_names = {5: "1 неделя", 20: "1 месяц", 60: "3 месяца", 120: "6 месяцев", 250: "1 год"}
+    for horizon, sample, _similarity, median, q10, q90, result_status in rows:
         if sample < 8:
-            st.write(f"{horizon} сессий: недостаточно независимых эпизодов ({sample}).")
+            st.write(f"{horizon_names.get(horizon, str(horizon))}: пока недостаточно похожих эпизодов.")
             continue
         st.write(
-            f"{horizon} сессий: {sample} эпизодов, похожесть {similarity}; "
-            f"медиана {median:+.1%}, диапазон 10–90% {q10:+.1%}…{q90:+.1%}; "
-            f"статус {result_status}."
+            f"{horizon_names.get(horizon, str(horizon))}: найдено {sample} похожих эпизодов; "
+            f"типичный результат {median:+.1%}, исторический диапазон {q10:+.1%}…{q90:+.1%}. "
+            f"{human_status(result_status)}"
         )

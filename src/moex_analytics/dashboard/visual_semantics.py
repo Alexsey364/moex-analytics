@@ -92,11 +92,13 @@ def confidence_segments(value: object) -> str:
 def forecast_marker(outcome_status: object, direction_correct=None, neutral_hit=None) -> VisualToken:
     if str(outcome_status or "pending").lower() != "matured":
         return TOKENS["insufficient"]
-    if bool(neutral_hit):
+    neutral_value = str(neutral_hit).lower()
+    direction_value = str(direction_correct).lower()
+    if neutral_value == "true":
         return TOKENS["mixed"]
-    if direction_correct is True:
+    if direction_value == "true":
         return TOKENS["positive"]
-    if direction_correct is False:
+    if direction_value == "false":
         return TOKENS["negative"]
     return TOKENS["mixed"]
 

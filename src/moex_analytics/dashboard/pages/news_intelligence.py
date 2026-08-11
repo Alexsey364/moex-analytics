@@ -7,6 +7,17 @@ import json
 import streamlit as st
 
 from moex_analytics.dashboard.data_access import read_connection
+from moex_analytics.dashboard.human_experience import russian_date
+
+EVENT_NAMES = {
+    "geopolitics": "🔥 Геополитика",
+    "oil": "🛢 Нефть",
+    "central_bank": "🏦 Центральный банк",
+    "negotiations": "🤝 Переговоры",
+    "company": "🏢 Новости компаний",
+    "corporate": "🏢 Новости компаний",
+    "macro": "📊 Экономика",
+}
 
 
 def load_news_view(con) -> dict:
@@ -32,14 +43,16 @@ def render() -> None:
         return
     run = view["research"]
     if not run or run[0] == "requires_more_history":
-        st.warning("Новостная история ещё недостаточна для подтверждённого прогнозного вывода.")
+        st.warning("Информационный фон — влияние новостей на цены ещё проверяется.")
     else:
-        st.info(f"Исследовательский статус: {run[0]}; production weight: {run[3]:.0%}")
-    for published, headline, event_type, entities, tone, _story in view["items"][:12]:
+        st.info("Новостной сигнал прошёл историческую проверку. Подробности доступны в расширенном режиме.")
+    for published, headline, event_type, entities, _tone, _story in view["items"][:12]:
         names = ", ".join(json.loads(entities or "[]")) or "рынок в целом"
         with st.container(border=True):
             st.markdown(f"**{headline}**")
-            st.caption(f"{published} · {event_type} · {names} · {tone}")
+            event_name = EVENT_NAMES.get(event_type, "🔵 Событие рынка")
+            date_text = russian_date(published) if published else "дата не указана"
+            st.caption(f"{date_text} · {event_name} · Может быть важно для: {names}")
     st.subheader("Фактическая реакция после момента доступности")
     if not view["reactions"]:
         st.info("Зрелых торговых исходов пока нет; старые цены не приписываются новым новостям.")

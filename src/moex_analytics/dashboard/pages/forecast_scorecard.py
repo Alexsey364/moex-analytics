@@ -22,7 +22,7 @@ def _q(sql, params=None):
 
 
 def render_basic():
-    st.header("Как программа прогнозирует")
+    st.header("Как программа оценивает будущее")
     try:
         with connection() as con:
             status = forecast_status(con)
@@ -39,11 +39,14 @@ def render_basic():
     )
     hit = outcomes.iloc[0].hit if not outcomes.empty else None
     mae = outcomes.iloc[0].mae if not outcomes.empty else None
-    cols[3].metric("Directional", "—" if pd.isna(hit) else f"{hit:.1%}")
-    cols[4].metric("Средняя ошибка", "—" if pd.isna(mae) else f"{mae:.2%}")
-    cols[5].metric("Live status", status["live_status"])
-    if status["matured"] < 20:
-        st.warning("Выборка пока мала. Live-история накапливается.")
+    cols[3].metric("Верное направление", "—" if pd.isna(hit) else f"{hit:.1%}")
+    cols[4].metric("Среднее отклонение", "—" if pd.isna(mae) else f"{mae:.2%}")
+    cols[5].metric(
+        "Статус проверки",
+        "⚪ Наблюдений мало" if status["matured"] < 50 else "🟡 Идёт проверка",
+    )
+    if status["matured"] < 50:
+        st.warning("Реальных наблюдений пока мало. Сильные выводы и числовые вероятности запрещены.")
     render_forecast_vs_fact()
 
 

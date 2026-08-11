@@ -8,6 +8,12 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from moex_analytics.dashboard.human_experience import (
+    percent,
+    portfolio_verdict,
+    rubles,
+    security_name,
+)
 from moex_analytics.dashboard.investor_visuals import (
     horizon_heatmap,
     price_figure,
@@ -34,7 +40,6 @@ from moex_analytics.portfolio_research.visual_assistant import (
     status_label,
     visual_status,
 )
-from moex_analytics.transparency import explain_current_decision
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -122,11 +127,11 @@ def _empty():
 
 
 def _money(value):
-    return "—" if pd.isna(value) else f"{value:,.2f} ₽".replace(",", " ")
+    return "—" if pd.isna(value) else rubles(float(value), 2)
 
 
 def _pct(value):
-    return "—" if pd.isna(value) else f"{value:.2%}"
+    return "—" if pd.isna(value) else percent(float(value))
 
 
 def _loads(value):
@@ -139,7 +144,7 @@ def _loads(value):
 def _human_table(frame):
     columns = {
         "Статус": frame.visual_status.map(status_label),
-        "Акция": frame.secid,
+        "Акция": frame.secid.map(security_name),
         "Цена": frame.current_price.map(_money),
         "Мой вес": frame.equity_weight.map(_pct),
         "1–5 дней": frame.short_term_view.map(horizon_label),
@@ -159,17 +164,21 @@ def _human_table(frame):
 
 def _add_decision_views(frame):
     result = frame.copy()
-    with connection(read_only=True) as con:
-        traces = {secid: explain_current_decision(con, secid) for secid in result.secid}
-    result["investment_view"] = result.secid.map(lambda secid: traces[secid]["investment_view"]["label"])
-    result["allocation_view"] = result.secid.map(
-        lambda secid: traces[secid]["portfolio_allocation_view"]["label"]
+    investment = {
+        "consider": "🟢 Можно рассматривать небольшое пополнение",
+        "wait": "🟡 Держать и ждать подтверждения",
+        "do_not_increase": "🟠 Пока не увеличивать",
+        "insufficient_data": "⚪ Недостаточно данных",
+    }
+    result["investment_view"] = result.action_group.map(investment).fillna(
+        "🟡 Сильного сигнала нет"
     )
+    result["allocation_view"] = result.portfolio_view.fillna("⚪ Целевой вес не задан")
     return result
 
 
 def render_today():
-    st.title("Сегодня")
+    st.header("Сегодня")
     report, frame = _synthesis()
     if report is None or frame.empty:
         _empty()
@@ -177,6 +186,11 @@ def render_today():
     if report.stale_warning:
         st.warning(report.stale_warning)
     frame = _add_decision_views(frame)
+    verdict, conclusion = portfolio_verdict(frame.visual_status.tolist())
+    with st.container(border=True):
+        st.caption("МОЙ ПОРТФЕЛЬ СЕГОДНЯ")
+        st.markdown(f"## {verdict}")
+        st.write(conclusion)
     daily = _q(
         "SELECT r.canonical_secid,r.total_return FROM daily_returns r "
         "JOIN (SELECT canonical_secid,max(trade_date) trade_date FROM daily_returns GROUP BY 1) x "
@@ -191,37 +205,35 @@ def render_today():
     risk_text = _pct(metric.iloc[0].value) if not metric.empty else "—"
     market = _q("SELECT * FROM market_state_daily ORDER BY trade_date DESC LIMIT 2")
     breadth = _q("SELECT * FROM market_breadth_daily ORDER BY trade_date DESC LIMIT 2")
-    st.subheader("РЫНОК СЕГОДНЯ")
-    top = st.columns(6)
-    state_label = report.market_regime
+    state_label = {
+        "стрессовый": "🟠 Напряжённый",
+        "stress": "🟠 Напряжённый",
+        "normal": "🟡 Неоднозначный",
+    }.get(str(report.market_regime), "⚪ Недостаточно данных")
     state_delta = (
         "→ без изменений"
         if len(market) < 2 or market.iloc[0].state_label == market.iloc[1].state_label
         else "↑ режим изменился"
     )
-    top[0].metric("Режим", state_label, state_delta, delta_color="off")
+    green = frame.visual_status.isin(["GREEN", "LIGHT_GREEN"]).any()
+    summary = st.columns(5)
+    summary[0].metric("Стоимость портфеля", _money(report.total_value))
+    summary[1].metric("Результат", _pct(report.total_profit_pct))
+    summary[2].metric("Риск", "🟡 Умеренный" if "🟠" not in state_label else "🟠 Повышенный")
+    summary[3].metric("Рынок сейчас", state_label, state_delta, delta_color="off")
+    summary[4].metric("Новые деньги", "🟢 Малый транш" if green else "⚪ Оставить в резерве")
+    st.caption(
+        f"Изменение портфеля за последнюю сессию: {_pct(daily_change)} · "
+        f"исторический риск: {risk_text}"
+    )
     if not breadth.empty:
         last_b = breadth.iloc[0]
         breadth_share = last_b.advancing / max(last_b.tradable_count, 1)
-        top[1].metric("Breadth", _pct(breadth_share), "доля растущих", delta_color="off")
-    else:
-        top[1].metric("Breadth", "? недостаточно данных")
-    top[2].metric("Волатильность", risk_text, "историческая", delta_color="off")
-    top[3].metric("Ликвидность", "i сохранённые данные")
-    top[4].metric("Ставки", "i см. макро")
-    top[5].metric("Рубль", "i см. макро")
-    st.subheader("МОЙ ПОРТФЕЛЬ")
-    summary = st.columns(4)
-    summary[0].metric("Стоимость акций", _money(report.total_value))
-    summary[1].metric("P/L", _pct(report.total_profit_pct))
-    summary[2].metric("Сегодня", _pct(daily_change))
-    summary[3].metric("Актуальность", f"{int(report.data_freshness_days)} дн.")
-    st.subheader("ГОРИЗОНТЫ ПОРТФЕЛЯ")
+        st.caption(f"Ширина рынка: {_pct(breadth_share)} растущих бумаг.")
+    st.subheader("Ожидания по срокам")
     horizons = _q(
-        "SELECT h.secid,h.horizon,h.status,h.confidence,r.model_version model,NULL sample "
-        "FROM human_horizon_views h LEFT JOIN forecast_registry r ON r.secid=h.secid "
-        "AND r.horizon_sessions=h.horizon AND r.cutoff=(SELECT max(cutoff) FROM forecast_registry) "
-        "WHERE h.report_id=? ORDER BY h.secid,h.horizon",
+        "SELECT h.secid,h.horizon,h.status,h.confidence "
+        "FROM human_horizon_views h WHERE h.report_id=? ORDER BY h.secid,h.horizon",
         [report.report_id],
     )
     if not horizons.empty:
@@ -230,7 +242,7 @@ def render_today():
             "↑ положительно · → смешанно/ждать · ↓ негативно · ? не доказано. "
             "Цвет не является единственным обозначением."
         )
-    st.subheader("ЧТО МОЖНО ДЕЛАТЬ")
+    st.subheader("Мои акции")
     counts = frame.visual_status.value_counts().to_dict()
     cols = st.columns(4)
     filters = [
@@ -255,17 +267,17 @@ def render_today():
         st.subheader("ВАЖНО")
         for row in alerts.head(5).itertuples():
             reason = row.top_negative or row.risk_view
-            st.warning(f"{status_label(row.visual_status)} · {row.secid}: {reason}")
+            st.warning(f"{status_label(row.visual_status)} · {security_name(row.secid)}: {reason}")
     st.subheader("ЧТО ИЗМЕНИЛОСЬ")
     for row in frame.itertuples():
-        st.write(f"**{row.secid}** {row.status_change}")
+        st.write(f"**{security_name(row.secid)}** {row.status_change}")
     st.subheader("🟢 МОЖНО РАССМАТРИВАТЬ")
     candidates = frame[frame.visual_status.isin(["GREEN", "LIGHT_GREEN"])]
     if candidates.empty:
         st.info("Сейчас нет позиций с достаточным подтверждением для зелёного статуса.")
     for row in candidates.itertuples():
         with st.container(border=True):
-            st.markdown(f"### {row.secid} · {_money(row.current_price)}")
+            st.markdown(f"### {security_name(row.secid)} · {_money(row.current_price)}")
             st.write(status_label(row.visual_status))
             st.caption(f"Вес: {_pct(row.equity_weight)} · Почему: {row.top_positive}")
             st.caption(f"Главный риск: {row.top_negative} · Следующий транш: до 10% очередного пополнения")
@@ -405,7 +417,7 @@ def _render_editor():
 
 
 def _company_card(row, report_id):
-    st.subheader(f"{row.secid} — {_money(row.current_price)}")
+    st.subheader(f"{security_name(row.secid)} — {_money(row.current_price)}")
     cols = st.columns(6)
     cols[0].metric("Количество", f"{row.quantity:g}")
     cols[1].metric("Средняя цена", _money(row.average_price))
@@ -413,15 +425,19 @@ def _company_card(row, report_id):
     cols[3].metric("Вес", _pct(row.equity_weight))
     cols[4].metric("P/L", _pct(row.profit_loss_pct))
     cols[5].metric("Уверенность", confidence_segments(row.confidence_score))
-    with connection(read_only=True) as con:
-        trace = explain_current_decision(con, row.secid)
-    st.markdown(f"### Инвестиционная оценка: {trace['investment_view']['label']}")
-    st.markdown(f"### Портфельное ограничение: {trace['portfolio_allocation_view']['label']}")
-    st.caption(f"Общий action status: {status_label(row.visual_status)}")
+    investment = {
+        "consider": "🟢 Можно рассматривать небольшое пополнение",
+        "wait": "🟡 Держать и ждать подтверждения",
+        "do_not_increase": "🟠 Пока не увеличивать",
+        "insufficient_data": "⚪ Недостаточно данных",
+    }.get(row.action_group, "🟡 Сильного сигнала нет")
+    st.markdown(f"### Инвестиционная оценка: {investment}")
+    st.markdown(f"### Портфельное ограничение: {row.portfolio_view}")
+    st.caption(f"Общий статус: {status_label(row.visual_status)}")
     st.caption(row.status_change)
     items = [
-        ("БЛИЖАЙШИЕ ДНИ", horizon_label(row.short_term_view)),
-        ("МЕСЯЦ", horizon_label(row.medium_term_view)),
+        ("1 НЕДЕЛЯ", horizon_label(row.short_term_view)),
+        ("1 МЕСЯЦ", horizon_label(row.medium_term_view)),
         ("3–12 МЕСЯЦЕВ", horizon_label(row.long_term_view)),
         ("ФУНДАМЕНТАЛ", row.portfolio_view),
         ("ОЦЕНКА", row.valuation_view),
@@ -442,9 +458,17 @@ def _company_card(row, report_id):
         horizon_cards = st.columns(len(horizons))
         for column, item in zip(horizon_cards, horizons.itertuples(), strict=False):
             token = token_for(item.status)
-            column.markdown(f"**{item.horizon} дней**")
+            names = {
+                1: "1 день",
+                5: "1 неделя",
+                20: "1 месяц",
+                60: "3 месяца",
+                120: "6 месяцев",
+                250: "1 год",
+            }
+            column.markdown(f"**{names.get(item.horizon, str(item.horizon))}**")
             column.write(f"{token.symbol} {item.view_text}")
-            column.caption(f"Evidence: {confidence_segments(item.confidence)}")
+            column.caption(f"Надёжность: {confidence_segments(item.confidence)}")
     period = st.radio(
         "Период цены",
         ("1М", "3М", "6М", "1Г", "3Г", "5Л", "MAX"),
@@ -615,7 +639,24 @@ def render_stocks():
             "NO_EVIDENCE": "низкая",
         }
         st.subheader("Историческая доказательность")
-        st.dataframe(evidence.assign(level=evidence.status.map(rank)), use_container_width=True)
+        human_evidence = evidence.assign(
+            **{
+                "Надёжность": evidence.status.map(rank),
+                "Вывод": evidence.status.map(
+                    {
+                        "SHADOW_CANDIDATE": "Исследовательская модель, ещё проверяется",
+                        "IMPROVED_BY_ISSUER_DATA": "Данные компании улучшили результат",
+                        "WEAK_EVIDENCE": "Есть слабые признаки",
+                        "NO_EVIDENCE": "Преимущество не подтверждено",
+                    }
+                ),
+            }
+        )[["horizon", "experiment", "Надёжность", "Вывод"]]
+        st.dataframe(
+            human_evidence.rename(columns={"horizon": "Срок", "experiment": "Блок"}),
+            use_container_width=True,
+            hide_index=True,
+        )
         working = evidence[evidence.status != "NO_EVIDENCE"].experiment.unique().tolist()
         st.caption("Основные работающие блоки: " + (", ".join(working) if working else "не подтверждены"))
         live = _q(

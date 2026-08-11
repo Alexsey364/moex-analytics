@@ -42,7 +42,7 @@ def test_registry_counts_and_opportunity_renderer_survive_clean_import():
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id in {"advanced_pages", "basic_pages"}:
                     counts[target.id] = len(node.value.keys)
-    assert counts == {"advanced_pages": 161, "basic_pages": 24}
+    assert counts == {"advanced_pages": 161, "basic_pages": 13}
     result = subprocess.run(
         [sys.executable, "-c", "from moex_analytics.dashboard.pages import "
          "predictive_command_center as p; assert callable(p.render_opportunity)"],
@@ -67,7 +67,7 @@ def test_header_prioritizes_market_cutoff_and_moves_load_log_to_history():
     source = Path("src/moex_analytics/dashboard/app.py").read_text(encoding="utf-8")
     assert "Последняя запись журнала загрузок" not in source
     assert "Торговые данные" in source
-    assert "Технический журнал загрузок доступен в истории обновлений" in source
+    assert "Технический журнал доступен в расширенном режиме" in source
     assert "Проблем качества" not in source
 
 
