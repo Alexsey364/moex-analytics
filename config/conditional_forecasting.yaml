@@ -26,3 +26,11 @@ regime_conditioning:
   expected_compatibility: 0.80
   alternative_compatibility: 0.55
   transition_horizons: [20, 60, 120]
+barrier_analytics:
+  version: first-passage-v1
+  horizons: [5, 20, 40, 60, 120, 250]
+  symmetric: [0.03, 0.05, 0.075, 0.10, 0.15]
+  asymmetric:
+    - [0.10, 0.05]
+    - [0.15, 0.075]
+  minimum_effective_sample: 4.0
