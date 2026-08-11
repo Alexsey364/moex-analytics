@@ -1,0 +1,129 @@
+sources:
+  - source_id: cbr_press_rss
+    name: Bank of Russia press releases
+    domain: cbr.ru
+    source_type: central_bank
+    tier: 1
+    official: true
+    access_method: RSS
+    endpoint: https://www.cbr.ru/rss/RssPress
+    license: official_publication_metadata_with_attribution
+    robots_status: rss_explicitly_published
+    rate_limit_per_minute: 6
+    timestamp_semantics: publication time supplied by official feed
+    timezone: Europe/Moscow
+    archive_depth: feed_window
+    reproducibility: URL + timestamps + content hash
+    status: active_metadata_only
+  - source_id: cbr_events_rss
+    name: Bank of Russia news and speeches
+    domain: cbr.ru
+    source_type: central_bank
+    tier: 1
+    official: true
+    access_method: RSS
+    endpoint: https://www.cbr.ru/rss/eventrss
+    license: official_publication_metadata_with_attribution
+    robots_status: rss_explicitly_published
+    rate_limit_per_minute: 6
+    timestamp_semantics: publication time supplied by official feed
+    timezone: Europe/Moscow
+    archive_depth: feed_window
+    reproducibility: URL + timestamps + content hash
+    status: active_metadata_only
+  - source_id: fed_press_rss
+    name: Federal Reserve press releases
+    domain: federalreserve.gov
+    source_type: central_bank
+    tier: 1
+    official: true
+    access_method: RSS
+    endpoint: https://www.federalreserve.gov/feeds/press_all.xml
+    license: official_rss_metadata
+    robots_status: rss_explicitly_published
+    rate_limit_per_minute: 6
+    timestamp_semantics: publication time supplied by official feed
+    timezone: America/New_York
+    archive_depth: press releases since 2006 plus archive
+    reproducibility: URL + timestamps + content hash
+    status: active_metadata_only
+  - source_id: ecb_press_rss
+    name: ECB press releases
+    domain: ecb.europa.eu
+    source_type: central_bank
+    tier: 1
+    official: true
+    access_method: RSS
+    endpoint: https://www.ecb.europa.eu/rss/press.html
+    license: official_rss_metadata
+    robots_status: rss_explicitly_published
+    rate_limit_per_minute: 6
+    timestamp_semantics: publication time supplied by official feed
+    timezone: Europe/Frankfurt
+    archive_depth: feed_window
+    reproducibility: URL + timestamps + content hash
+    status: active_metadata_only
+  - source_id: moex_official_news
+    name: Moscow Exchange official news
+    domain: moex.com
+    source_type: exchange
+    tier: 1
+    official: true
+    access_method: HTML
+    endpoint: https://www.moex.com/ru/news/
+    license: review_required
+    robots_status: review_required
+    rate_limit_per_minute: 0
+    timestamp_semantics: page publication timestamp
+    timezone: Europe/Moscow
+    archive_depth: unknown
+    reproducibility: registry only until access review
+    status: disabled_pending_review
+  - source_id: eia_press
+    name: U.S. Energy Information Administration
+    domain: eia.gov
+    source_type: commodity_agency
+    tier: 1
+    official: true
+    access_method: API/RSS
+    endpoint: https://www.eia.gov/rss/press_rss.xml
+    license: official_public_information_metadata
+    robots_status: rss_explicitly_published
+    rate_limit_per_minute: 6
+    timestamp_semantics: official publication timestamp
+    timezone: America/New_York
+    archive_depth: feed_window
+    reproducibility: URL + timestamps + content hash
+    status: active_metadata_only
+  - source_id: ofac_notices
+    name: U.S. Treasury OFAC notices
+    domain: home.treasury.gov
+    source_type: sanctions_regulator
+    tier: 1
+    official: true
+    access_method: RSS
+    endpoint: https://home.treasury.gov/system/files/126/ofac-combined.xml
+    license: review_required
+    robots_status: review_required
+    rate_limit_per_minute: 0
+    timestamp_semantics: official notice timestamp
+    timezone: America/New_York
+    archive_depth: unknown
+    reproducibility: registry only until feed validation
+    status: disabled_pending_review
+  - source_id: issuer_ir_portfolio
+    name: Portfolio issuer IR sites
+    domain: multiple
+    source_type: issuer_ir
+    tier: 1
+    official: true
+    access_method: RSS/API/HTML
+    endpoint: null
+    license: per_issuer_review_required
+    robots_status: per_issuer_review_required
+    rate_limit_per_minute: 0
+    timestamp_semantics: issuer publication timestamp
+    timezone: Europe/Moscow
+    archive_depth: per issuer
+    reproducibility: disabled until issuer-specific governance
+    status: disabled_pending_review

@@ -566,6 +566,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("build-distilled-investor-view")
     sub.add_parser("distilled-investor-view-status")
     sub.add_parser("write-long-horizon-ranking-report")
+    sub.add_parser("build-news-source-registry")
+    sub.add_parser("news-source-registry-status")
     sub.add_parser("run-live-informed-research-cycle")
     sub.add_parser("data-inventory")
     receipt = sub.add_parser("update-receipt")
@@ -1992,6 +1994,15 @@ def main() -> None:
                 "write-long-horizon-ranking-report": investor_decision.write_final_report,
             }
             print(actions[args.command](con))
+    elif args.command in {"build-news-source-registry", "news-source-registry-status"}:
+        from .news_foundation import core as news_foundation
+
+        init_database()
+        with connection() as con:
+            action = (news_foundation.load_source_registry
+                      if args.command == "build-news-source-registry"
+                      else news_foundation.source_status)
+            print(action(con))
     elif args.command == "dashboard":
         from .dashboard.launcher import mark_process
 
