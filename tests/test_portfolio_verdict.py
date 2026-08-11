@@ -1,16 +1,48 @@
 import duckdb
 
 from moex_analytics.conditioned_stock_forecasting.core import HORIZONS, SECIDS
-from moex_analytics.portfolio_verdict.core import action_policy, build_portfolio_verdicts
+from moex_analytics.portfolio_verdict.core import (
+    action_policy,
+    allocation_policy,
+    build_portfolio_verdicts,
+    investment_policy,
+)
 
 
-def test_red_requires_concentration_not_weak_model_output() -> None:
+def test_concentration_cannot_change_investment_view() -> None:
     action, _ = action_policy(
         stress=False, concentration=0.3, positive=0, negative=0, eligible_direction=False
     )
-    assert action.startswith("🔴")
+    assert action.startswith("🟡")
     weak, _ = action_policy(stress=False, concentration=0.1, positive=0, negative=1, eligible_direction=False)
-    assert not weak.startswith("🔴")
+    assert weak.startswith("🟠")
+
+
+def test_investment_can_be_green_while_allocation_is_red() -> None:
+    investment, _ = investment_policy(
+        stress=False, positive=2, negative=0, eligible_direction=True
+    )
+    allocation, _ = allocation_policy(
+        mode="BALANCED",
+        current_weight=0.31,
+        target_weight=0.20,
+        max_weight=0.30,
+        allow_buy=True,
+    )
+    assert investment.startswith("🟢")
+    assert allocation.startswith("🔴")
+
+
+def test_building_mode_without_target_weight_does_not_hard_block() -> None:
+    allocation, reason = allocation_policy(
+        mode="BUILDING",
+        current_weight=0.31,
+        target_weight=None,
+        max_weight=None,
+        allow_buy=True,
+    )
+    assert allocation.startswith("⚪")
+    assert "not a hard limit" in reason
 
 
 def test_positive_action_requires_eligible_directional_evidence() -> None:
@@ -36,7 +68,7 @@ def test_action_policy_handles_stress_and_severe_data_without_false_red() -> Non
         eligible_direction=False,
         severe_data=True,
     )
-    assert caution.startswith("🟠")
+    assert caution.startswith("🔴")
     assert missing.startswith("⚪")
 
 
@@ -99,12 +131,14 @@ def test_full_verdict_uses_saved_evidence_and_current_real_snapshot() -> None:
     assert result["production_changes"] == 0
     assert build_portfolio_verdicts(con)["idempotent"] is True
     sber = con.execute(
-        "SELECT portfolio_action FROM portfolio_final_verdicts WHERE instrument='SBERP'"
-    ).fetchone()[0]
-    assert sber.startswith("🔴")
+        """SELECT investment_status,allocation_status FROM investment_allocation_views
+        WHERE instrument='SBERP'"""
+    ).fetchone()
+    assert not sber[0].startswith("🔴")
+    assert sber[1].startswith("⚪")
     assert (
         con.execute(
-            "SELECT count(*) FROM portfolio_final_verdicts WHERE portfolio_action LIKE '🟢%'"
+            "SELECT count(*) FROM investment_allocation_views WHERE investment_status LIKE '🟢%'"
         ).fetchone()[0]
         == 0
     )

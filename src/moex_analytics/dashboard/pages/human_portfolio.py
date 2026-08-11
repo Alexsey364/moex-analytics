@@ -29,6 +29,7 @@ from moex_analytics.database import connection
 from moex_analytics.portfolio_research.human_intelligence import INTENTS, answer_question
 from moex_analytics.portfolio_research.portfolio_editor import (
     instrument_registry,
+    load_portfolio_settings,
     load_positions,
     position_diff,
     recalculate_portfolio,
@@ -435,6 +436,8 @@ def _editor_frame(rows):
                 "Тикер": x["secid"],
                 "Количество": x["quantity"],
                 "Средняя цена": x["average_price"],
+                "Желаемая доля": x.get("target_weight"),
+                "Максимальная доля": x.get("maximum_weight"),
                 "Разрешить покупку": x.get("allow_buy", True),
                 "Разрешить сокращение": x.get("allow_sell", True),
                 "Заморожено": x.get("frozen", False),
@@ -451,6 +454,8 @@ def _from_editor(frame):
             "secid": x.get("Тикер", ""),
             "quantity": x.get("Количество"),
             "average_price": x.get("Средняя цена"),
+            "target_weight": x.get("Желаемая доля"),
+            "maximum_weight": x.get("Максимальная доля"),
             "allow_buy": x.get("Разрешить покупку", True),
             "allow_sell": x.get("Разрешить сокращение", True),
             "frozen": x.get("Заморожено", False),
@@ -464,6 +469,23 @@ def _render_editor():
     st.divider()
     st.subheader("Редактировать портфель")
     original = load_positions()
+    current_mode = load_portfolio_settings()["portfolio_mode"]
+    mode_labels = {
+        "BUILDING": "Формирую портфель",
+        "BALANCED": "Балансирую портфель",
+        "MAINTENANCE": "Портфель сформирован",
+    }
+    selected_label = st.radio(
+        "Портфель сейчас",
+        list(mode_labels.values()),
+        index=list(mode_labels).index(current_mode),
+        horizontal=True,
+    )
+    selected_mode = next(key for key, label in mode_labels.items() if label == selected_label)
+    st.caption(
+        "В режиме формирования фактический вес без заданной желаемой доли не блокирует "
+        "рыночную оценку бумаги."
+    )
     edited = st.data_editor(
         _editor_frame(original),
         num_rows="dynamic",
@@ -477,6 +499,8 @@ def _render_editor():
             names = instrument_registry(con)
         normalized = validate_positions(candidate, set(names))
         changes = position_diff(original, normalized)
+        if selected_mode != current_mode:
+            changes.insert(0, f"Режим: {mode_labels[current_mode]} → {mode_labels[selected_mode]}")
     except ValueError as exc:
         normalized, changes = [], []
         st.error(str(exc))
@@ -492,7 +516,7 @@ def _render_editor():
         "Сохранить и пересчитать", type="primary", disabled=not changes, use_container_width=True
     ):
         try:
-            save_positions(normalized, set(names))
+            save_positions(normalized, set(names), portfolio_mode=selected_mode)
             with connection() as con:
                 recalculate_portfolio(con)
         except Exception as exc:

@@ -9,9 +9,11 @@ from typing import Any
 
 import duckdb
 
+from moex_analytics.portfolio_research.portfolio_editor import load_portfolio_settings
+
 from .schema import ensure_schema
 
-VERSION = "stage82-v4"
+VERSION = "stage91-v1"
 HORIZON_LABELS = {5: "сейчас", 20: "1 месяц", 60: "3 месяца", 120: "6 месяцев", 250: "1 год"}
 
 
@@ -24,15 +26,56 @@ def action_policy(
     eligible_direction: bool,
     severe_data: bool = False,
 ) -> tuple[str, str]:
+    """Backward-compatible market policy; concentration is intentionally ignored."""
+    _ = concentration
+    return investment_policy(
+        stress=stress,
+        positive=positive,
+        negative=negative,
+        eligible_direction=eligible_direction,
+        severe_data=severe_data,
+    )
+
+
+def investment_policy(
+    *, stress: bool, positive: int, negative: int, eligible_direction: bool, severe_data: bool = False
+) -> tuple[str, str]:
     if severe_data:
         return "⚪ Недостаточно данных", "severe current data problem"
-    if concentration is not None and concentration >= 0.25:
-        return "🔴 Не увеличивать из-за риска/концентрации", "portfolio concentration restriction"  # noqa: RUF001
     if stress and negative > positive:
-        return "🟠 Пока не увеличивать", "stress market and adverse evidence"
+        return "🔴 Рыночные условия неблагоприятны", "stress market and adverse investment evidence"
     if eligible_direction and positive > negative:
-        return "🟢 Можно рассматривать небольшое пополнение", "positive eligible evidence"
-    return "🟡 Держать / наблюдать", "mixed or directionally unproven evidence"
+        return "🟢 Умеренно привлекательна", "positive eligible investment evidence"
+    if negative > positive:
+        return "🟠 Слабее альтернатив", "adverse relative investment evidence"
+    return "🟡 Нейтрально / ждать подтверждения", "mixed or directionally unproven evidence"
+
+
+def allocation_policy(
+    *,
+    mode: str,
+    current_weight: float | None,
+    target_weight: float | None,
+    max_weight: float | None,
+    allow_buy: bool,
+) -> tuple[str, str]:
+    if not allow_buy:
+        return "🔴 Покупка отключена пользователем", "allow_buy is false"
+    if max_weight is not None and current_weight is not None and current_weight >= max_weight:
+        return "🔴 Превышена допустимая концентрация", "current weight reached explicit max weight"
+    if target_weight is None:
+        reason = "target weight is not set; current relative weight is not a hard limit"
+        if mode == "BUILDING":
+            reason += " while portfolio is being built"
+        return "⚪ Целевой вес не задан", reason
+    if current_weight is None:
+        return "⚪ Недостаточно данных о портфеле", "current portfolio weight unavailable"  # noqa: RUF001
+    gap = target_weight - current_weight
+    if gap <= 0:
+        return "🟠 Уже достаточно", "current weight reached explicit target weight"
+    if gap < max(0.02, target_weight * 0.2):
+        return "🟡 Небольшой транш", "small gap to explicit target weight"
+    return "🟢 Можно увеличить", "material gap to explicit target weight"
 
 
 def _latest(con: duckdb.DuckDBPyConnection, table: str) -> str:
@@ -53,17 +96,30 @@ def build_portfolio_verdicts(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
     run_id = hashlib.sha256(signature.encode()).hexdigest()[:20]
     if con.execute("SELECT 1 FROM portfolio_verdict_runs WHERE run_id=?", [run_id]).fetchone():
         return _status(con, run_id) | {"idempotent": True}
-    positions = {}
+    positions: dict[str, dict[str, Any]] = {}
     if con.execute("SELECT count(*) FROM portfolio_positions").fetchone()[0]:
         snapshot = con.execute(
             """SELECT snapshot_id FROM portfolio_snapshots
             WHERE status='real' ORDER BY created_at DESC LIMIT 1"""
         ).fetchone()[0]
-        positions = dict(
-            con.execute(
-                "SELECT secid,weight FROM portfolio_positions WHERE snapshot_id=?", [snapshot]
+        try:
+            position_rows = con.execute(
+                """SELECT secid,weight,target_weight,max_weight,can_add
+                FROM portfolio_positions WHERE snapshot_id=?""",
+                [snapshot],
             ).fetchall()
-        )
+            positions = {
+                row[0]: dict(weight=row[1], target=row[2], maximum=row[3], allow_buy=bool(row[4]))
+                for row in position_rows
+            }
+        except duckdb.BinderException:
+            positions = {
+                row[0]: dict(weight=row[1], target=None, maximum=None, allow_buy=True)
+                for row in con.execute(
+                    "SELECT secid,weight FROM portfolio_positions WHERE snapshot_id=?", [snapshot]
+                ).fetchall()
+            }
+    portfolio_mode = load_portfolio_settings().get("portfolio_mode", "BUILDING")
     live = con.execute(
         """SELECT secid,horizon,predicted_rank,qualitative_state,status
         FROM live_stock_rank_forecasts WHERE run_id=?""",
@@ -146,7 +202,7 @@ def build_portfolio_verdicts(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
                 "shadow/context only",
                 "context only; predictive weight 0",
                 "high" if state == "stress" else "normal",
-                f"weight {positions.get(instrument, 0):.1%}",
+                f"weight {positions.get(instrument, {}).get('weight', 0):.1%}",
                 "too small / pending",
                 json.dumps(top_for),
                 json.dumps(top_against),
@@ -160,23 +216,30 @@ def build_portfolio_verdicts(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
         positive = sum(item["positive"] for item in records)
         negative = sum(item["negative"] for item in records)
         directional = any(item["directional"] for item in records)
-        action, reason = action_policy(
+        investment, investment_reason = investment_policy(
             stress=state == "stress",
-            concentration=positions.get(instrument),
             positive=positive,
             negative=negative,
             eligible_direction=directional,
         )
+        position = positions.get(instrument, {})
+        allocation, allocation_reason = allocation_policy(
+            mode=portfolio_mode,
+            current_weight=position.get("weight"),
+            target_weight=position.get("target"),
+            max_weight=position.get("maximum"),
+            allow_buy=position.get("allow_buy", True),
+        )
         conflict = any(item["conflict"] for item in records)
-        verdict = "Смешанная картина" if conflict or not directional else reason
+        verdict = "Смешанная картина" if conflict or not directional else investment_reason
         top_for = [reason for item in records for reason in item["top_for"]][:3]
         top_against = list(dict.fromkeys(reason for item in records for reason in item["top_against"]))[:3]
         final_rows.append(
             [
                 run_id,
                 instrument,
-                "mixed" if conflict else "research_only",
-                action,
+                investment,
+                allocation,
                 "high" if state == "stress" else "normal",
                 verdict,
                 json.dumps(top_for),
@@ -184,6 +247,35 @@ def build_portfolio_verdicts(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
                 json.dumps(records[0]["improve"]),
                 json.dumps(records[0]["worsen"]),
             ]
+        )
+        con.execute(
+            """INSERT INTO investment_allocation_views (
+            run_id,instrument,investment_status,investment_reason,allocation_status,
+            allocation_reason,portfolio_mode,current_weight,target_weight,max_weight,allow_buy,
+            investment_inputs_json,allocation_inputs_json,immutable
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,TRUE)""",
+            [
+                run_id,
+                instrument,
+                investment,
+                investment_reason,
+                allocation,
+                allocation_reason,
+                portfolio_mode,
+                position.get("weight"),
+                position.get("target"),
+                position.get("maximum"),
+                position.get("allow_buy", True),
+                json.dumps(
+                    {
+                        "market": state,
+                        "positive_blocks": positive,
+                        "negative_blocks": negative,
+                        "eligible_direction": directional,
+                    }
+                ),
+                json.dumps(position),
+            ],
         )
     con.executemany(
         "INSERT INTO portfolio_horizon_verdicts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows

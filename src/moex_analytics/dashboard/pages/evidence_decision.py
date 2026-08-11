@@ -35,12 +35,26 @@ def load_payload() -> dict[str, Any]:
             """SELECT run_id,cutoff,verdict_run_id,consistency_hash FROM portfolio_review_runs
             WHERE status='completed' ORDER BY created_at DESC LIMIT 1"""
         ).fetchone()
-        verdicts = con.execute(
-            """SELECT instrument,current_status,portfolio_action,risk_status,human_verdict,
-            top_for_json,top_against_json,improve_json,worsen_json FROM portfolio_final_verdicts
-            WHERE run_id=? ORDER BY instrument""",
-            [review[2]],
-        ).df()
+        if table_exists(con, "investment_allocation_views"):
+            verdicts = con.execute(
+                """SELECT f.instrument,f.current_status,f.portfolio_action,f.risk_status,
+                f.human_verdict,f.top_for_json,f.top_against_json,f.improve_json,f.worsen_json,
+                v.investment_status,v.investment_reason,v.allocation_status,v.allocation_reason,
+                v.portfolio_mode,v.current_weight,v.target_weight,v.max_weight
+                FROM portfolio_final_verdicts f JOIN investment_allocation_views v
+                USING(run_id,instrument) WHERE f.run_id=? ORDER BY f.instrument""",
+                [review[2]],
+            ).df()
+        else:
+            verdicts = con.execute(
+                """SELECT instrument,current_status,portfolio_action,risk_status,human_verdict,
+                top_for_json,top_against_json,improve_json,worsen_json,
+                current_status investment_status,human_verdict investment_reason,
+                portfolio_action allocation_status,human_verdict allocation_reason,
+                'BUILDING' portfolio_mode,NULL current_weight,NULL target_weight,NULL max_weight
+                FROM portfolio_final_verdicts WHERE run_id=? ORDER BY instrument""",
+                [review[2]],
+            ).df()
         horizons = con.execute(
             """SELECT instrument,horizon,directional_state,evidence_strength,relative_group,
             relative_rank,market_effect,sector_effect,strongest_evidence,analog_effect,news_effect,
@@ -121,14 +135,16 @@ def _table(payload: dict[str, Any]) -> pd.DataFrame:
                 f"{human_direction(item.directional_state)} · {evidence_badge(item.evidence_strength)}"
             )
         row["Риск"] = verdicts.loc[instrument].risk_status
-        row["Действие"] = verdicts.loc[instrument].portfolio_action
+        verdict = verdicts.loc[instrument]
+        row["Рыночный вывод"] = verdict.get("investment_status", verdict.get("portfolio_action"))
+        row["Портфельный вывод"] = verdict.get("allocation_status", verdict.get("portfolio_action"))
         rows.append(row)
     return pd.DataFrame(rows)
 
 
 def _overview(payload: dict[str, Any]) -> None:
     verdicts = payload["verdicts"]
-    red = verdicts[verdicts.portfolio_action.str.startswith("🔴")].instrument.tolist()
+    red = verdicts[verdicts.allocation_status.str.startswith("🔴")].instrument.tolist()
     ranking = payload["horizons"][payload["horizons"].horizon == 120].sort_values("relative_rank")
     strongest = ", ".join(ranking.head(3).instrument)
     weakest = ", ".join(ranking.tail(3).instrument)
@@ -194,7 +210,14 @@ def render_stocks() -> None:
     verdicts = payload["verdicts"].set_index("instrument")
     for instrument, group in payload["horizons"].groupby("instrument"):
         verdict = verdicts.loc[instrument]
-        with st.expander(f"{instrument} — {verdict.portfolio_action}"):
+        with st.expander(f"{instrument} — {verdict.investment_status}"):
+            market_column, portfolio_column = st.columns(2)
+            market_column.markdown("**РЫНОЧНЫЙ ВЫВОД**")
+            market_column.write(verdict.investment_status)
+            market_column.caption(verdict.investment_reason)
+            portfolio_column.markdown("**ПОРТФЕЛЬНЫЙ ВЫВОД**")
+            portfolio_column.write(verdict.allocation_status)
+            portfolio_column.caption(verdict.allocation_reason)
             st.dataframe(
                 group.assign(
                     Горизонт=group.horizon.map(LABELS),

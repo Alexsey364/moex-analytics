@@ -49,8 +49,9 @@ def test_status_change():
     assert status_change("GRAY", "GRAY") == "→ без изменений"
 
 
-def _row(quantity=41):
+def _row(quantity=41, target_weight=None, maximum_weight=None):
     return {"secid": "SBERP", "quantity": quantity, "average_price": 287.81,
+            "target_weight": target_weight, "maximum_weight": maximum_weight,
             "allow_buy": True, "allow_sell": True, "frozen": False, "notes": ""}
 
 
@@ -65,6 +66,16 @@ def test_editor_load_validation_diff_atomic_save_and_backup(tmp_path):
     assert backup and backup.read_bytes() == before
     assert load_positions(path)[0]["quantity"] == 42
     assert not list(tmp_path.glob(".portfolio.*"))
+
+
+def test_editor_preserves_optional_target_and_maximum_weights(tmp_path):
+    path = tmp_path / "portfolio_positions.local.yaml"
+    saved = validate_positions([_row(target_weight=0.20, maximum_weight=0.30)], {"SBERP"})
+    save_positions(saved, {"SBERP"}, path, tmp_path / "backups", portfolio_mode="BALANCED")
+    loaded = load_positions(path)[0]
+    assert loaded["target_weight"] == 0.20
+    assert loaded["maximum_weight"] == 0.30
+    assert yaml.safe_load(path.read_text(encoding="utf-8"))["portfolio_mode"] == "BALANCED"
 
 
 def test_editor_rejects_unknown_and_invalid_values():

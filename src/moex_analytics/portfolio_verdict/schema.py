@@ -14,6 +14,12 @@ CREATE TABLE IF NOT EXISTS portfolio_final_verdicts(
  run_id VARCHAR,instrument VARCHAR,current_status VARCHAR,portfolio_action VARCHAR,risk_status VARCHAR,
  human_verdict VARCHAR,top_for_json JSON,top_against_json JSON,improve_json JSON,worsen_json JSON,
  PRIMARY KEY(run_id,instrument));
+CREATE TABLE IF NOT EXISTS investment_allocation_views(
+ run_id VARCHAR,instrument VARCHAR,investment_status VARCHAR,investment_reason VARCHAR,
+ allocation_status VARCHAR,allocation_reason VARCHAR,portfolio_mode VARCHAR,
+ current_weight DOUBLE,target_weight DOUBLE,max_weight DOUBLE,allow_buy BOOLEAN,
+ investment_inputs_json JSON,allocation_inputs_json JSON,immutable BOOLEAN,
+ PRIMARY KEY(run_id,instrument));
 """
 
 
