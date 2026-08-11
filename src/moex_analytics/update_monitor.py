@@ -17,6 +17,7 @@ STAGES = (
     ("prices", "MOEX market prices", "MOEX ISS"),
     ("macro", "Trading statistics / macro", "Bank of Russia / MOEX ISS"),
     ("fundamentals", "Fundamentals", "issuer IR"),
+    ("news_events", "Official news / events", "governed official RSS"),
     ("dividends_events", "Dividends / events", "MOEX ISS / issuer IR"),
     ("regimes", "Indices / breadth / regimes", "MOEX ISS / local"),
     ("portfolio", "Portfolio analytics", "local"),

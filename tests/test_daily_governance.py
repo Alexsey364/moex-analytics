@@ -39,7 +39,7 @@ def test_weekend_quick_no_change_same_cutoff_and_request_log():
     con = _con()
     result = run_daily_update(con, now=datetime(2026, 8, 8, 12))
     assert result["no_change"] and result["http_requests"] == 0
-    assert con.execute("SELECT count(*) FROM daily_update_requests").fetchone()[0] == 8
+    assert con.execute("SELECT count(*) FROM daily_update_requests").fetchone()[0] == 9
     assert con.execute("SELECT status FROM daily_update_requests WHERE dataset='prices'").fetchone()[0] == (
         "no_new_logical_cutoff"
     )

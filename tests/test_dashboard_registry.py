@@ -42,7 +42,7 @@ def test_registry_counts_and_opportunity_renderer_survive_clean_import():
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id in {"advanced_pages", "basic_pages"}:
                     counts[target.id] = len(node.value.keys)
-    assert counts == {"advanced_pages": 160, "basic_pages": 23}
+    assert counts == {"advanced_pages": 161, "basic_pages": 24}
     result = subprocess.run(
         [sys.executable, "-c", "from moex_analytics.dashboard.pages import "
          "predictive_command_center as p; assert callable(p.render_opportunity)"],

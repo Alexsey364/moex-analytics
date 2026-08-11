@@ -46,6 +46,7 @@ from moex_analytics.dashboard.pages import (
     meta_learning,
     methodology,
     model_tournament,
+    news_intelligence,
     overview,
     portfolio_learning,
     portfolio_research,
@@ -102,6 +103,7 @@ st.caption(
 )
 
 advanced_pages = {
+    "News Intelligence — audit": news_intelligence.render,
     "Historical Analog Explorer 3.0": predictive_command_center.render_explorer,
     "Visual Forecast Lab 3.0 — Opportunity Map": predictive_command_center.render_opportunity,
     "Visual Forecast Lab 3.0 — Portfolio Optimizer": predictive_command_center.render_optimizer,
@@ -266,6 +268,7 @@ advanced_pages = {
 basic_pages = {
     "Обучение системы": learning_cycle.render_basic,
     "Сегодня": human_portfolio.render_today,
+    "Что сейчас двигает рынок": news_intelligence.render,
     "Мои данные": transparency.render_data,
     "Развитие базы": predictive_expansion.render,
     "Состояние рынка": trading_statistics.render_market_state,

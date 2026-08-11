@@ -65,6 +65,7 @@ def _source(dataset):
         "prices": "MOEX ISS",
         "macro": "CBR/MOEX",
         "fundamentals": "issuer disclosures",
+        "news_events": "governed official RSS",
         "dividends_events": "MOEX/issuer",
         "regimes": "local",
         "portfolio": "local",
@@ -154,6 +155,7 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
         "prices",
         "macro",
         "fundamentals",
+        "news_events",
         "dividends_events",
         "regimes",
         "portfolio",
@@ -204,6 +206,21 @@ def run_daily_update(con, *, mode="quick", dry_run=False, fail_source=None, now=
 
                 result = capture_daily_forecasts(con)
                 new_forecasts, status = result["inserted"], result["status"]
+            elif dataset == "news_events":
+                from moex_analytics.news_foundation.core import load_source_registry
+                from moex_analytics.news_intelligence.core import ingest_live_news
+                from moex_analytics.news_reaction.core import build_reaction_memory
+                from moex_analytics.news_research.core import run_news_research
+
+                if mode == "quick" and (now.weekday() >= 5 or latest == now.date()):
+                    status = "smart_skip_no_new_market_cutoff"
+                else:
+                    load_source_registry(con)
+                    result = ingest_live_news(con)
+                    requests, rows = result["requests"], result["inserted"]
+                    build_reaction_memory(con)
+                    run_news_research(con)
+                    status = result["status"]
             elif dataset == "forecast_evaluation":
                 from .live_validation import evaluate_live_validation
 
