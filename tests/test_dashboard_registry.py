@@ -42,7 +42,9 @@ def test_registry_counts_and_opportunity_renderer_survive_clean_import():
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id in {"advanced_pages", "basic_pages"}:
                     counts[target.id] = len(node.value.keys)
-    assert counts == {"advanced_pages": 162, "basic_pages": 15}
+    assert counts == {"advanced_pages": 163, "basic_pages": 15}
+    source = Path("src/moex_analytics/dashboard/app.py").read_text(encoding="utf-8")
+    assert '"Decision Forecast Cockpit": decision_forecast_cockpit.render' in source
     result = subprocess.run(
         [sys.executable, "-c", "from moex_analytics.dashboard.pages import "
          "predictive_command_center as p; assert callable(p.render_opportunity)"],

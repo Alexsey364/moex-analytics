@@ -19,7 +19,7 @@ BASIC_LABELS = (
 ADVANCED_GROUPS = {
     "Данные": ("данн", "база", "качество", "обнов", "источник"),
     "Фундаментал": ("fundamental", "valuation", "дивид", "мсфо"),
-    "Модели": ("модел", "model", "прогноз", "regime", "режим"),
+    "Модели": ("модел", "model", "forecast", "прогноз", "regime", "режим"),
     "Alpha Research": ("alpha", "feature", "interaction"),
     "Backtest": ("backtest", "walk-forward", "проверка"),
     "Portfolio Research": ("portfolio", "портфел"),

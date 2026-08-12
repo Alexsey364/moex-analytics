@@ -40,6 +40,7 @@ from moex_analytics.dashboard.pages import (
     daily_briefing,
     data_quality,
     database_status,
+    decision_forecast_cockpit,
     deep_backfill,
     evidence_decision,
     feature_learning,
@@ -141,6 +142,7 @@ st.caption(
 )
 
 advanced_pages = {
+    "Decision Forecast Cockpit": decision_forecast_cockpit.render,
     "Whole Market Predictive Evidence": whole_market.render_advanced,
     "News Intelligence — audit": news_intelligence.render,
     "Historical Analog Explorer 3.0": predictive_command_center.render_explorer,
