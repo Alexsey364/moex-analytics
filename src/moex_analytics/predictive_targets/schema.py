@@ -34,4 +34,14 @@ CREATE TABLE IF NOT EXISTS predictive_entry_targets(
  entered BOOLEAN,history_end DATE,execution_semantics VARCHAR,immutable BOOLEAN,
  PRIMARY KEY(run_id,trade_date,secid,horizon,policy)
 );
+CREATE TABLE IF NOT EXISTS predictive_return_targets(
+ run_id VARCHAR,evaluation_date DATE,secid VARCHAR,horizon INTEGER,
+ feature_timestamp TIMESTAMP,evaluation_timestamp TIMESTAMP,target_available_date DATE,
+ forward_return DOUBLE,forward_log_return DOUBLE,market_return DOUBLE,
+ excess_imoex DOUBLE,sector_return DOUBLE,excess_sector DOUBLE,up BOOLEAN,
+ outperform_market BOOLEAN,max_drawdown DOUBLE,max_favorable_excursion DOUBLE,
+ max_adverse_excursion DOUBLE,realized_vol DOUBLE,target_version VARCHAR,
+ history_end DATE,immutable BOOLEAN,
+ PRIMARY KEY(run_id,evaluation_date,secid,horizon)
+);
 """

@@ -538,6 +538,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("historical-analog-research-status")
     sub.add_parser("build-predictive-targets")
     sub.add_parser("predictive-target-status")
+    sub.add_parser("build-baseline-suite")
+    sub.add_parser("baseline-suite-status")
     sub.add_parser("run-ranking-research")
     sub.add_parser("ranking-research-status")
     sub.add_parser("run-distribution-research")
@@ -1846,6 +1848,19 @@ def main() -> None:
                 else predictive_targets.target_status
             )
             print(action(con))
+    elif args.command in {"build-baseline-suite", "baseline-suite-status"}:
+        from .baseline_models import core as baseline_models
+
+        init_database()
+        with connection() as con:
+            if args.command == "build-baseline-suite":
+                print(baseline_models.build_baseline_suite(con))
+            else:
+                row = con.execute(
+                    "SELECT run_id,status,cutoff,prediction_rows,scorecard_rows "
+                    "FROM predictive_baseline_runs ORDER BY started_at DESC LIMIT 1"
+                ).fetchone()
+                print(row)
     elif args.command in {"run-ranking-research", "ranking-research-status"}:
         from .ranking_engine import core as ranking_engine
 

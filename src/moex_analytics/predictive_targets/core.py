@@ -11,7 +11,7 @@ import pandas as pd
 
 from .schema import DDL
 
-VERSION = "predictive-targets-v3-atomic"
+VERSION = "predictive-targets-v4-return-foundation"
 HORIZONS = (1, 5, 20, 60, 120, 250)
 ENTRY_POLICIES = {"BUY_NOW": 1, "WAIT_3": 3, "WAIT_5": 5, "WAIT_10": 10}
 LIMIT_POLICIES = {"BUY_AFTER_DIP_2": 0.02, "BUY_AFTER_DIP_3": 0.03}
@@ -52,6 +52,10 @@ def _definitions(con: Any) -> None:
         "path_excursion": ("Observed path MFE, MAE and drawdown", "path extrema through t+h"),
         "path_shape": ("Deterministic realised path class", "fixed v1 path rules"),
         "risk_adjusted": ("Forward return scaled by realised risk", "R/vol, R/abs(MAE), Calmar"),
+        "forward_return": ("Forward dividend-adjusted arithmetic return", "TRI[t+h]/TRI[t]-1"),
+        "forward_log_return": ("Forward dividend-adjusted log return", "log(TRI[t+h]/TRI[t])"),
+        "up": ("Positive forward return label", "1 if forward_return>0 else 0"),
+        "outperform_market": ("Market outperformance label", "1 if excess_imoex>0 else 0"),
     }
     rows = []
     for horizon in HORIZONS:
@@ -212,6 +216,29 @@ def build_predictive_targets(con: Any) -> dict[str, Any]:
         [run_id, VERSION, source_version, cutoff, input_hash, json.dumps({"production_changes": 0})])
     try:
         observations, entries = _records(frame, run_id)
+        supervised = observations[["run_id", "trade_date", "secid", "horizon", "exit_date",
+            "total_return", "excess_imoex", "excess_sector", "mfe", "mae",
+            "path_max_drawdown", "realized_volatility", "history_end", "immutable"]].copy()
+        supervised = supervised.rename(columns={"trade_date": "evaluation_date",
+            "exit_date": "target_available_date", "total_return": "forward_return",
+            "mfe": "max_favorable_excursion", "mae": "max_adverse_excursion",
+            "path_max_drawdown": "max_drawdown", "realized_volatility": "realized_vol"})
+        supervised["forward_log_return"] = np.log1p(supervised.forward_return)
+        supervised["market_return"] = supervised.forward_return - supervised.excess_imoex
+        supervised["sector_return"] = supervised.forward_return - supervised.excess_sector
+        supervised["up"] = supervised.forward_return > 0
+        supervised["outperform_market"] = supervised.excess_imoex > 0
+        supervised["feature_timestamp"] = (
+            pd.to_datetime(supervised.evaluation_date.astype(str))
+            + pd.Timedelta(hours=18, minutes=50)
+        )
+        supervised["evaluation_timestamp"] = supervised.feature_timestamp
+        supervised["target_version"] = VERSION
+        supervised = supervised[["run_id", "evaluation_date", "secid", "horizon",
+            "feature_timestamp", "evaluation_timestamp", "target_available_date", "forward_return",
+            "forward_log_return", "market_return", "excess_imoex", "sector_return", "excess_sector",
+            "up", "outperform_market", "max_drawdown", "max_favorable_excursion",
+            "max_adverse_excursion", "realized_vol", "target_version", "history_end", "immutable"]]
         details = {"horizons": HORIZONS, "path_shapes": sorted(PATH_SHAPES),
                    "sector_excess": "unavailable_no_pit_sector_mapping", "future_leakage": False,
                    "probability_published": False, "production_changes": 0}
@@ -220,7 +247,8 @@ def build_predictive_targets(con: Any) -> dict[str, Any]:
         con.execute("BEGIN TRANSACTION")
         try:
             for name, data in (("predictive_target_observations", observations),
-                               ("predictive_entry_targets", entries)):
+                               ("predictive_entry_targets", entries),
+                               ("predictive_return_targets", supervised)):
                 con.execute(f"DELETE FROM {name} WHERE run_id=?", [run_id])
                 con.register(f"_{name}", data)
                 columns = ",".join(data.columns)
