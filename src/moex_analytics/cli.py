@@ -542,6 +542,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("baseline-suite-status")
     sub.add_parser("build-predictive-feature-store")
     sub.add_parser("predictive-feature-store-status")
+    sub.add_parser("run-statistical-return-models")
+    sub.add_parser("statistical-return-model-status")
     sub.add_parser("run-ranking-research")
     sub.add_parser("ranking-research-status")
     sub.add_parser("run-distribution-research")
@@ -1873,6 +1875,16 @@ def main() -> None:
             else:
                 print(con.execute("SELECT run_id,status,cutoff,rows,features,families "
                     "FROM predictive_feature_runs ORDER BY started_at DESC LIMIT 1").fetchone())
+    elif args.command in {"run-statistical-return-models", "statistical-return-model-status"}:
+        from .statistical_models import core as statistical_models
+
+        init_database()
+        with connection() as con:
+            if args.command == "run-statistical-return-models":
+                print(statistical_models.run_statistical_models(con))
+            else:
+                print(con.execute("SELECT run_id,status,models,predictions FROM "
+                    "statistical_model_runs ORDER BY started_at DESC LIMIT 1").fetchone())
     elif args.command in {"run-ranking-research", "ranking-research-status"}:
         from .ranking_engine import core as ranking_engine
 
