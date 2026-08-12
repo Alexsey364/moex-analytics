@@ -34,3 +34,19 @@ barrier_analytics:
     - [0.10, 0.05]
     - [0.15, 0.075]
   minimum_effective_sample: 4.0
+historical_validation:
+  version: frozen-oos-calibration-v1.1
+  schedule_sessions: 20
+  minimum_history: 500
+  train_fraction: 0.60
+  calibration_fraction: 0.20
+  frozen_test_fraction: 0.20
+  similarity_thresholds: [45.0, 55.0, 65.0]
+  default_similarity_threshold: 45.0
+  minimum_oos_forecasts: 20
+  minimum_effective_sample: 4.0
+  target_60_coverage: 0.60
+  coverage_60_tolerance: 0.10
+  target_80_coverage: 0.80
+  coverage_80_tolerance: 0.10
+  random_seed: 42

@@ -2,7 +2,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from moex_analytics.dashboard.pages.investor_cockpit import projection_figure
+from moex_analytics.dashboard.pages.investor_cockpit import (
+    conditional_projection_figure,
+    projection_figure,
+)
 
 
 def test_cockpit_chart_separates_actual_today_bands_and_real_medoid() -> None:
@@ -45,3 +48,35 @@ def test_cockpit_has_prominent_disclaimer_and_no_probability_claim() -> None:
     assert "Правая часть графика — не известное будущее" in text
     assert "не числовая вероятность" in text
     assert "Вероятность роста" not in text
+
+
+def test_stage100_chart_separates_expected_plausible_and_stress() -> None:
+    history = pd.DataFrame(
+        {"trade_date": pd.to_datetime(["2026-08-07", "2026-08-10"]), "close": [100.0, 101.0]}
+    )
+    curves = pd.DataFrame(
+        {
+            "session": [0, 1],
+            "weighted_median_price": [101.0, 102.0],
+            "expected60_low": [101.0, 99.0],
+            "expected60_high": [101.0, 104.0],
+            "plausible80_low": [101.0, 97.0],
+            "plausible80_high": [101.0, 106.0],
+            "stress_low": [101.0, 90.0],
+            "stress_high": [101.0, 110.0],
+        }
+    )
+    paths = pd.DataFrame(
+        {
+            "analog_date": ["2020-01-01", "2020-01-01"],
+            "session": [0, 1],
+            "projected_price": [101, 103],
+        }
+    )
+    figure = conditional_projection_figure(history, curves, paths, show_raw=False)
+    names = {trace.name for trace in figure.data}
+    assert "Conditional weighted median path" in names
+    assert "Expected 60% (не подтверждён)" in names
+    assert "Plausible 80% (не подтверждён)" in names
+    assert "Stress envelope" in names
+    assert not any(name.startswith("Observed branch") for name in names)
