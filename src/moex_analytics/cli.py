@@ -546,6 +546,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("statistical-return-model-status")
     sub.add_parser("run-fundamental-expected-return")
     sub.add_parser("run-macro-sensitivity")
+    sub.add_parser("run-dynamic-ensemble")
     sub.add_parser("run-ranking-research")
     sub.add_parser("ranking-research-status")
     sub.add_parser("run-distribution-research")
@@ -1899,6 +1900,12 @@ def main() -> None:
         init_database()
         with connection() as con:
             print(macro_sensitivity.run_macro_sensitivity(con))
+    elif args.command == "run-dynamic-ensemble":
+        from .dynamic_ensemble import core as dynamic_ensemble
+
+        init_database()
+        with connection() as con:
+            print(dynamic_ensemble.run_dynamic_ensemble(con))
     elif args.command in {"run-ranking-research", "ranking-research-status"}:
         from .ranking_engine import core as ranking_engine
 
