@@ -8,7 +8,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import ElasticNet, Ridge
 from sklearn.metrics import ndcg_score
 from sklearn.pipeline import make_pipeline
@@ -16,7 +15,7 @@ from sklearn.preprocessing import StandardScaler
 
 from .schema import DDL
 
-VERSION = "cross-sectional-ranking-v2-purged"
+VERSION = "cross-sectional-ranking-v4-real-turnover"
 PORTFOLIO = ("X5", "SBERP", "LKOH", "LSNGP", "MTSS", "TRNFP", "TATNP", "PHOR", "MOEX")
 FEATURES = ("momentum_5", "momentum_20", "momentum_60", "momentum_120",
             "volatility_20", "volatility_60", "drawdown_60", "relative_20",
@@ -33,12 +32,6 @@ def _models() -> dict[str, Any]:
         "linear_ranking": make_pipeline(StandardScaler(), Ridge(alpha=10.0)),
         "elasticnet_proxy": make_pipeline(StandardScaler(), ElasticNet(alpha=.001, l1_ratio=.25,
                                                                           max_iter=3000)),
-        "hist_gradient_boosting": HistGradientBoostingRegressor(max_iter=120, max_leaf_nodes=15,
-                                                                  learning_rate=.05, random_state=42),
-        "extra_trees": ExtraTreesRegressor(n_estimators=100, min_samples_leaf=20, max_features=.8,
-                                             n_jobs=-1, random_state=42),
-        "random_forest": RandomForestRegressor(n_estimators=100, min_samples_leaf=20,
-                                                 max_features=.8, n_jobs=-1, random_state=42),
     }
 
 
@@ -243,11 +236,16 @@ def run_ranking_research(con: Any) -> dict[str, Any]:
                 picks = picks.groupby("trade_date").head(k)
                 daily = picks.groupby("trade_date").agg(stock=("actual_return", "mean"),
                     benchmark=("imoex_return", "mean"))
+                holdings = picks.groupby("trade_date").secid.apply(set).sort_index()
+                turnover_values = [1.0]
+                for prior, current in zip(holdings.iloc[:-1], holdings.iloc[1:], strict=True):
+                    turnover_values.append(1 - len(prior & current) / max(1, k))
+                turnover = float(np.mean(turnover_values))
                 commission = .001
                 backtests.append([run_id, int(horizon), selected, k, "untouched_holdout_frozen",
                     len(daily), float(daily.stock.mean() - commission),
                     float((daily.stock - daily.benchmark).mean() - commission),
-                    float(predicted.groupby("trade_date").actual_return.mean().mean()), 1.0,
+                    float(predicted.groupby("trade_date").actual_return.mean().mean()), turnover,
                     10.0, 1, "research_only"])
             latest = feature_panel[feature_panel.trade_date == feature_panel.trade_date.max()].copy()
             if not latest.empty:
@@ -293,7 +291,8 @@ def run_ranking_research(con: Any) -> dict[str, Any]:
                             ("current_portfolio_ranking", current)):
             _insert_frame(con, table, data)
         details = {"selection_touched_holdout": False, "holdout_frozen": True,
-                   "survivors_only": False, "models": sorted(_models()), "production_changes": 0,
+                   "survivors_only": False, "pit_universe_from_observed_history": True,
+                   "models": sorted(_models()), "complex_models": False, "production_changes": 0,
                    "probability_published": False}
         con.execute("UPDATE ranking_research_runs SET finished_at=current_timestamp,status='completed',"
                     "prediction_rows=?,details_json=? WHERE run_id=?",

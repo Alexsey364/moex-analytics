@@ -22,6 +22,7 @@ def test_schema_and_empty_status() -> None:
     assert ranking_status(con) == {"latest": None}
     columns = {row[0] for row in con.execute("DESCRIBE ranking_model_policies").fetchall()}
     assert {"policy_hash", "selection_sample", "selected", "immutable"} <= columns
+    assert set(core._models()) == {"linear_ranking", "elasticnet_proxy"}
 
 
 def test_temporal_boundaries_are_ordered_and_frozen() -> None:
@@ -100,3 +101,5 @@ def test_research_run_freezes_validation_policy_before_holdout(
     assert con.execute("SELECT sum(selected::int),bool_and(selection_sample='validation_only') "
                        "FROM ranking_model_policies").fetchone() == (1, True)
     assert run_ranking_research(con)["cached"] is True
+    turnover = con.execute("SELECT turnover FROM ranking_topk_backtests LIMIT 1").fetchone()[0]
+    assert 0 <= turnover <= 1
